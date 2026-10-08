@@ -41,6 +41,12 @@ body {
   border: 1px solid color-mix(in srgb, var(--color-background-surface) 70%, transparent);
   box-shadow: var(--shadow-med);
 }
+/* liquid-gl sets pointer-events:none on every lens element (it assumes a decorative pane).
+   Our lenses are the navigation and buttons, so they must stay tappable. */
+.bottom-nav.glass,
+.hero__cta.glass,
+.cart-fab.glass { pointer-events: auto !important; }
+
 .glass.glass--gl {
   background: transparent;
   -webkit-backdrop-filter: none;
