@@ -8,7 +8,7 @@ import { Banner } from '@astryxdesign/core/Banner';
 import { Token } from '@astryxdesign/core/Token';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { MinusIcon, PlusIcon, ShoppingBagIcon, ArrowLeftIcon } from '@phosphor-icons/react';
-import { discountFor, formatRub } from '@domain';
+import { CATEGORIES, discountFor, formatRub } from '@domain';
 import { useShop } from '../lib/shop';
 import { useCart } from '../lib/cart';
 import { CardOffer } from '../components/CardOffer';
@@ -25,9 +25,12 @@ export default function Product() {
   const [added, setAdded] = useState<string | null>(null);
 
   if (!p) {
-    return <EmptyState title="Товар не найден" description="Возможно, его убрали из каталога." actions={<Button label="Все букеты" href={`/s/${slug}/bouquets`} />} />;
+    return <EmptyState title="Товар не найден" description="Возможно, его убрали из каталога." actions={<Button label="Все букеты" href={`/s/${slug}/catalog`} />} />;
   }
   const isBouquet = p.kind === 'bouquet';
+  const category = CATEGORIES.find((c) => c.kind === p.kind)!;
+  // a postcard is offered with anything that can be delivered on its own
+  const offerCard = p.kind !== 'card';
   const inCart = cart.lines.find((l) => l.productId === p.id)?.quantity ?? 0;
   const maxQty = Math.max(0, Math.min(99, (p.stock ?? 99) - inCart));
   const s = shop.settings;
@@ -48,7 +51,7 @@ export default function Product() {
     <VStack gap={5}>
       <SampleBanner />
       <HStack>
-        <Button label={isBouquet ? 'Все букеты' : 'Каталог'} variant="ghost" icon={<ArrowLeftIcon size={18} />} href={`/s/${slug}/bouquets`} />
+        <Button label={category.title} variant="ghost" icon={<ArrowLeftIcon size={18} />} href={`/s/${slug}/catalog/${category.slug}`} />
       </HStack>
       <div className="product">
         <div className="product__media">
@@ -67,7 +70,7 @@ export default function Product() {
 
           {p.inStock ? (
             <>
-              {isBouquet ? <CardOffer value={card} onChange={setCard} note={note} onNote={setNote} /> : null}
+              {offerCard ? <CardOffer value={card} onChange={setCard} note={note} onNote={setNote} /> : null}
               <HStack gap={3} justify="between" vAlign="center">
                 <Text weight="semibold">Количество</Text>
                 <span className="qty">

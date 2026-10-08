@@ -126,6 +126,17 @@
       "sort": 3
     },
     {
+      "kind": "balloon",
+      "id": "balloons-pastel",
+      "name": "Шары «Нежность», 7 шт.",
+      "description": "Связка латексных шаров с гелием в пастельных тонах.",
+      "price": 1750,
+      "photo": "photos/balloons-pastel.jpg",
+      "inStock": true,
+      "stock": null,
+      "sort": 51
+    },
+    {
       "kind": "card",
       "id": "card-kraft",
       "name": "Крафт-открытка",

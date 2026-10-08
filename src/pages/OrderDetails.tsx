@@ -71,7 +71,8 @@ export default function OrderDetails() {
           </MetadataList>
           <Divider />
           <VStack gap={1}>
-            <HStack justify="between"><Text>Букеты</Text><Text>{formatRub(o.price.bouquetsSubtotal)}</Text></HStack>
+            {o.price.bouquetsSubtotal ? <HStack justify="between"><Text>Букеты</Text><Text>{formatRub(o.price.bouquetsSubtotal)}</Text></HStack> : null}
+            {o.price.balloonsSubtotal ? <HStack justify="between"><Text>Воздушные шары</Text><Text>{formatRub(o.price.balloonsSubtotal)}</Text></HStack> : null}
             {o.price.cardsSubtotal ? <HStack justify="between"><Text>Открытки</Text><Text>{formatRub(o.price.cardsSubtotal)}</Text></HStack> : null}
             {o.price.discount ? <HStack justify="between"><Text color="accent">Скидка {o.price.discountPercent}%</Text><Text color="accent">−{formatRub(o.price.discount)}</Text></HStack> : null}
             <HStack justify="between"><Text>Доставка</Text><Text>{o.price.deliveryFee ? formatRub(o.price.deliveryFee) : 'бесплатно'}</Text></HStack>

@@ -70,7 +70,7 @@ export function ContactSection({ headingLevel = 2 }: { headingLevel?: 2 | 3 }) {
             </VStack>
           </HStack>
           <VStack gap={2}>
-            <Button label="Выбрать букет" variant="primary" size="lg" width="100%" href={`/s/${slug}/bouquets`} />
+            <Button label="Открыть каталог" variant="primary" size="lg" width="100%" href={`/s/${slug}/catalog`} />
             <Button label={`Позвонить ${formatPhone(s.phone)}`} icon={<PhoneIcon size={20} aria-hidden />} size="lg" width="100%" href={`tel:${s.phone}`} />
             <HStack gap={2}>
               {s.telegram ? (

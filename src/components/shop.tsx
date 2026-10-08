@@ -35,7 +35,7 @@ export function Hero() {
         onLoad={() => setLoaded((n) => n + 1)}
       />
       {s.logo ? <img className="hero__logo" src={media(s.logo)} alt="" aria-hidden /> : null}
-      <RouterLink ref={ctaRef} to={cart.count ? `/s/${slug}/order` : `/s/${slug}/bouquets`} className="hero__cta glass" data-testid="hero-cta">
+      <RouterLink ref={ctaRef} to={cart.count ? `/s/${slug}/order` : `/s/${slug}/catalog`} className="hero__cta glass" data-testid="hero-cta">
         <span className="hero__cta-label">
           <CalendarCheckIcon size={24} weight="bold" aria-hidden />
           Записаться

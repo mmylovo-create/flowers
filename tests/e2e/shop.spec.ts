@@ -22,14 +22,14 @@ test('home page: photo, name, bouquets with prices, reviews, contacts and order 
   await expect(contactHeading).toBeVisible();
   await expect(page.getByText(/Москва, ул\. Покровка, \d+/).first()).toBeVisible(); // the owner test may have edited the number
   await expect(page.getByText(/Пн–Пт: 09:00–21:00/).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Выбрать букет' }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Открыть каталог' }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: /Позвонить/ }).first()).toHaveAttribute('href', 'tel:+79991234567');
 });
 
-test('glass navigation: Главная, Букеты, Мои заказы, and it never hides the end of the page', async ({ page }) => {
+test('glass navigation: Главная, Каталог, Скидки, Мои заказы, and it never hides the end of the page', async ({ page }) => {
   await page.goto(`${SHOP}/`);
   const nav = page.getByRole('navigation', { name: 'Основная навигация' });
-  for (const name of ['Главная', 'Букеты', 'Скидки', 'Мои заказы']) await expect(nav.getByRole('link', { name })).toBeVisible();
+  for (const name of ['Главная', 'Каталог', 'Скидки', 'Мои заказы']) await expect(nav.getByRole('link', { name })).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await page.waitForTimeout(600);
   const navBox = (await nav.boundingBox())!;
@@ -41,9 +41,9 @@ test('glass navigation: Главная, Букеты, Мои заказы, and i
     return max;
   });
   expect(lastBottom).toBeLessThanOrEqual(navBox.y);
-  await nav.getByRole('link', { name: 'Букеты' }).click();
-  await expect(page).toHaveURL(/\/s\/demo\/bouquets$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Букеты' })).toBeVisible();
+  await nav.getByRole('link', { name: 'Каталог' }).click();
+  await expect(page).toHaveURL(/\/s\/demo\/catalog$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Каталог' })).toBeVisible();
 });
 
 test('sections appear on scroll, and instantly with reduced motion', async ({ browser }) => {
@@ -72,11 +72,32 @@ test('«Скидки» tab: order in advance, quantity discounts, contact us', a
   await expect(page.getByRole('heading', { name: 'Связаться с нами' })).toBeVisible();
 });
 
-test('catalog has a separate «Открытки» section; postcard tiles open their own page', async ({ page }) => {
-  await page.goto(`${SHOP}/bouquets`);
-  await expect(page.getByRole('heading', { name: 'Открытки' })).toBeVisible();
+test('catalog: subcategories Букеты, Воздушные шары, Открытки; product pages open from tiles', async ({ page }) => {
+  await page.goto(`${SHOP}/catalog`);
+  for (const t of ['Букеты', 'Воздушные шары', 'Открытки']) await expect(page.getByRole('heading', { level: 2, name: t })).toBeVisible();
+  await page.getByTestId('category-balloons').click();
+  await expect(page).toHaveURL(/\/catalog\/balloons$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Воздушные шары' })).toBeVisible();
+  await expect(page.getByTestId('bouquet-balloon-heart')).toContainText(/690 ₽/);
+  await expect(page.getByTestId('section-bouquets')).toHaveCount(0);
+  await page.getByTestId('bouquet-balloon-heart').click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Шар-сердце фольгированный' })).toBeVisible();
+  await expect(page.getByTestId('card-offer')).toBeVisible(); // a postcard goes with balloons too
+  await expect(page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'Каталог' })).toHaveClass(/is-active/);
+  await page.getByRole('link', { name: 'Воздушные шары' }).first().click();
+  await expect(page).toHaveURL(/\/catalog\/balloons$/);
+
+  await page.goto(`${SHOP}/catalog/cards`);
   await page.getByTestId('bouquet-card-birthday').click();
   await expect(page.getByRole('heading', { level: 1, name: 'Открытка «С днём рождения»' })).toBeVisible();
-  await expect(page.getByTestId('product-price')).toHaveText(/250 ₽/);
   await expect(page.getByTestId('card-offer')).toHaveCount(0); // no postcard offer on a postcard
+
+  await page.goto(`${SHOP}/bouquets`); // old address still works
+  await expect(page).toHaveURL(/\/catalog\/bouquets$/);
+});
+
+test('home page leads to the other catalog sections', async ({ page }) => {
+  await page.goto(`${SHOP}/`);
+  await page.getByTestId('home-category-balloons').click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Воздушные шары' })).toBeVisible();
 });

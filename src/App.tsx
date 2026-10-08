@@ -13,7 +13,7 @@ import { CartButton } from './components/CartButton';
 import { AppLink } from './components/common';
 import Home from './pages/Home';
 
-const Bouquets = lazy(() => import('./pages/Bouquets'));
+const Catalog = lazy(() => import('./pages/Catalog'));
 const Order = lazy(() => import('./pages/Order'));
 const MyOrders = lazy(() => import('./pages/MyOrders'));
 const OrderDetails = lazy(() => import('./pages/OrderDetails'));
@@ -92,7 +92,10 @@ export default function App() {
         <Route path="/" element={DEFAULT_SLUG ? <Navigate to={`/s/${DEFAULT_SLUG}/`} replace /> : <main className="page"><EmptyState title="Нет магазинов" description="Создайте магазин: pnpm shop:new <название>" /></main>} />
         <Route path="/s/:slug" element={<ShopLayout />}>
           <Route index element={<Home />} />
-          <Route path="bouquets" element={<Bouquets />} />
+          <Route path="catalog" element={<Catalog />} />
+          <Route path="catalog/:category" element={<Catalog />} />
+          {/* old links */}
+          <Route path="bouquets" element={<Navigate to="../catalog/bouquets" replace />} />
           <Route path="b/:id" element={<Product />} />
           <Route path="order" element={<Order />} />
           <Route path="cart" element={<Order />} />

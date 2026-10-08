@@ -103,7 +103,7 @@ export function orderText(o: OrderView, shopName: string, tz: string, slotMinute
   const head = kind === 'order_cancelled' ? `❌ Клиент отменил заказ №${o.number}` : `🌸 Новый заказ №${o.number}`;
   const lines = [
     `${head} — ${shopName}`,
-    ...o.items.map((i) => `${i.kind === 'card' ? '💌' : '💐'} ${i.name} × ${i.quantity} — ${formatRub(i.unitPrice * i.quantity)}${i.note ? `\n   Текст открытки: «${i.note}»` : ''}`),
+    ...o.items.map((i) => `${i.kind === 'card' ? '💌' : i.kind === 'balloon' ? '🎈' : '💐'} ${i.name} × ${i.quantity} — ${formatRub(i.unitPrice * i.quantity)}${i.note ? `\n   Текст открытки: «${i.note}»` : ''}`),
     `Доставка: ${formatSlot(o.slotStart, tz, slotMinutes)}`,
     `Сумма: ${formatRub(o.price.total)}${o.price.discountPercent ? ` (скидка ${o.price.discountPercent}%)` : ''}${o.price.deliveryFee ? `, доставка ${formatRub(o.price.deliveryFee)}` : ''}`,
     `Клиент: ${o.name}, ${formatPhone(o.phone)}`,

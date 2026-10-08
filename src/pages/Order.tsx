@@ -113,7 +113,7 @@ export default function Order() {
     };
     const parsed = orderInputSchema.safeParse(input);
     if (!hasBouquet) {
-      setFormError('Добавьте в корзину хотя бы один букет — открытки доставляем вместе с букетом.');
+      setFormError('Добавьте в корзину букет или шары — открытки доставляем вместе с ними.');
       return;
     }
     if (unavailable.length) {
@@ -139,8 +139,8 @@ export default function Order() {
         <EmptyState
           icon={<ShoppingBagIcon size={40} aria-hidden />}
           title="В корзине пока пусто"
-          description="Откройте букет, выберите количество и открытку — и возвращайтесь сюда, чтобы выбрать время доставки."
-          actions={<Button label="Выбрать букет" variant="primary" href={`/s/${slug}/bouquets`} />}
+          description="Откройте букет или шары в каталоге, добавьте в корзину — и возвращайтесь сюда, чтобы выбрать время доставки."
+          actions={<Button label="Открыть каталог" variant="primary" href={`/s/${slug}/catalog`} />}
         />
       </VStack>
     );
@@ -155,7 +155,7 @@ export default function Order() {
         <VStack gap={4}>
           <HStack justify="between" vAlign="center">
             <Heading level={2}>1. Корзина</Heading>
-            <Button label="Добавить букет" variant="ghost" href={`/s/${slug}/bouquets`} />
+            <Button label="В каталог" variant="ghost" href={`/s/${slug}/catalog`} />
           </HStack>
           {rows.map(({ line, product }) => {
             const max = Math.min(99, product.stock ?? 99);
@@ -189,7 +189,7 @@ export default function Order() {
           })}
           {price.discountPercent ? <Text color="accent" weight="semibold">Скидка {price.discountPercent}% на букеты за количество</Text> : null}
           {nextDiscount ? <Text color="secondary">От {nextDiscount.minQty} букетов в заказе — скидка {nextDiscount.percent}%</Text> : null}
-          {!hasBouquet ? <Banner status="info" title="Добавьте букет" description="Открытки доставляем вместе с букетом." /> : null}
+          {!hasBouquet ? <Banner status="info" title="Добавьте букет или шары" description="Открытки доставляем вместе с букетом или шарами." /> : null}
           {hasBouquet && !hasCard ? (
             <VStack gap={3}>
               <CardOffer value={offerCard} onChange={setOfferCard} note={offerNote} onNote={setOfferNote} title="Не забыли открытку?" />
@@ -286,6 +286,7 @@ export default function Order() {
           {rows.length ? (
             <VStack gap={1}>
               {price.bouquetsSubtotal ? <HStack justify="between"><Text>Букеты: {price.bouquetCount} шт.</Text><Text>{formatRub(price.bouquetsSubtotal)}</Text></HStack> : null}
+              {price.balloonsSubtotal ? <HStack justify="between"><Text>Воздушные шары</Text><Text>{formatRub(price.balloonsSubtotal)}</Text></HStack> : null}
               {price.cardsSubtotal ? <HStack justify="between"><Text>Открытки</Text><Text>{formatRub(price.cardsSubtotal)}</Text></HStack> : null}
               {price.discount ? <HStack justify="between"><Text color="accent">Скидка {price.discountPercent}%</Text><Text color="accent">−{formatRub(price.discount)}</Text></HStack> : null}
               <HStack justify="between"><Text>Доставка</Text><Text>{price.deliveryFee ? formatRub(price.deliveryFee) : 'бесплатно'}</Text></HStack>

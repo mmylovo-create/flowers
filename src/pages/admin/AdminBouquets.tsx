@@ -15,7 +15,7 @@ import { Dialog } from '@astryxdesign/core/Dialog';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Banner } from '@astryxdesign/core/Banner';
 import { PlusIcon } from '@phosphor-icons/react';
-import { bouquetSchema, formatRub, zodIssues, type Bouquet } from '@domain';
+import { bouquetSchema, formatRub, KIND_LABELS, zodIssues, type Bouquet } from '@domain';
 import { bouquetIdFromName } from '@server/telegram.ts';
 import { useShop } from '../../lib/shop';
 import { ApiError } from '../../lib/api';
@@ -53,6 +53,7 @@ function BouquetDialog({ shopId, initial, onClose }: { shopId: string; initial: 
         <Heading level={2}>{isNew ? 'Новый товар' : `«${initial?.name}»`}</Heading>
         <SegmentedControl label="Что это" value={b.kind} onChange={(v) => setB({ ...b, kind: v as Bouquet['kind'] })}>
           <SegmentedControlItem value="bouquet" label="Букет" />
+          <SegmentedControlItem value="balloon" label="Шары" />
           <SegmentedControlItem value="card" label="Открытка" />
         </SegmentedControl>
         <TextInput label="Название" value={b.name} onChange={(v) => setB({ ...b, name: v })} isRequired />
@@ -89,7 +90,7 @@ export default function AdminBouquets({ shopId }: { shopId: string }) {
   return (
     <VStack gap={4}>
       <HStack gap={3} justify="between" vAlign="center">
-        <Heading level={2}>Букеты, открытки и наличие</Heading>
+        <Heading level={2}>Товары и наличие</Heading>
         <Button label="Добавить товар" variant="primary" icon={<PlusIcon size={18} />} onClick={() => setEditing('new')} />
       </HStack>
       {stock.isError ? <Banner status="error" title={(stock.error as Error).message} /> : null}
@@ -98,8 +99,8 @@ export default function AdminBouquets({ shopId }: { shopId: string }) {
           <HStack gap={3} vAlign="center" wrap="wrap">
             <img className="thumb" src={media(b.photo)} alt="" />
             <VStack gap={0.5}>
-              <Text weight="semibold">{b.name}{b.kind === 'card' ? ' ' : ''}</Text>
-              {b.kind === 'card' ? <Token label="Открытка" color="pink" size="sm" /> : null}
+              <Text weight="semibold">{b.name}</Text>
+              {b.kind !== 'bouquet' ? <Token label={KIND_LABELS[b.kind]} color={b.kind === 'card' ? 'pink' : 'blue'} size="sm" /> : null}
               <Text color="secondary">{formatRub(b.price)}{b.stock !== null ? ` · остаток ${b.stock} шт.` : ''}</Text>
             </VStack>
             <HStack gap={2} vAlign="center" justify="end" wrap="wrap">

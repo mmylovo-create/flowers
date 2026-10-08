@@ -82,7 +82,8 @@ body {
   letter-spacing: 0.01em;
   -webkit-tap-highlight-color: transparent;
 }
-.bottom-nav__item[aria-current='page'] {
+.bottom-nav__item[aria-current='page'],
+.bottom-nav__item.is-active {
   color: var(--color-text-accent);
   background: color-mix(in srgb, var(--color-accent) 14%, transparent);
 }
@@ -334,3 +335,37 @@ body {
 /* basket lines */
 .cart-line { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--spacing-3); align-items: start; }
 .cart-line__body { min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-2); }
+
+/* catalog subcategory chips */
+.cat-chip {
+  flex: none;
+  scroll-snap-align: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  min-height: 44px;
+  padding-inline: var(--spacing-4);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-emphasized);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 15px;
+  -webkit-tap-highlight-color: transparent;
+}
+.cat-chip[aria-current='page'] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
+.cat-chip__count { font-size: 13px; font-weight: 600; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.cat-chip:focus-visible { outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color); outline-offset: 2px; }
+
+/* home: «Ещё в каталоге» tiles */
+.cat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--spacing-3); }
+.cat-tile {
+  position: relative; display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: var(--spacing-3); align-items: center;
+  padding: var(--spacing-3); border-radius: var(--radius-container); background: var(--color-background-surface);
+  box-shadow: var(--shadow-low); color: var(--color-text-primary); text-decoration: none;
+}
+.cat-tile img { width: 72px; height: 72px; border-radius: var(--radius-element); object-fit: cover; }
+.cat-tile__title { font-weight: 700; font-size: 16px; }
+.cat-tile__hint { font-size: 13px; color: var(--color-text-secondary); }
+.cat-tile:focus-visible { outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color); outline-offset: 2px; }

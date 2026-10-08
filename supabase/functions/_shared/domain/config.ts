@@ -48,11 +48,21 @@ export const discountTierSchema = z.object({
   percent: z.number().min(1).max(90),
 });
 
-export const PRODUCT_KINDS = ['bouquet', 'card'] as const;
+export const PRODUCT_KINDS = ['bouquet', 'balloon', 'card'] as const;
 export type ProductKind = (typeof PRODUCT_KINDS)[number];
-export const KIND_LABELS: Record<ProductKind, string> = { bouquet: 'Букет', card: 'Открытка' };
+export const KIND_LABELS: Record<ProductKind, string> = { bouquet: 'Букет', balloon: 'Шары', card: 'Открытка' };
 
-/** A catalog item: a bouquet or a postcard sold alongside bouquets. */
+/** Catalog subcategories, in the order they are shown. */
+export const CATEGORIES: { kind: ProductKind; slug: string; title: string; hint: string }[] = [
+  { kind: 'bouquet', slug: 'bouquets', title: 'Букеты', hint: 'Собираем в день доставки из свежих цветов.' },
+  { kind: 'balloon', slug: 'balloons', title: 'Воздушные шары', hint: 'Надуваем гелием перед доставкой — летают от 3 дней.' },
+  { kind: 'card', slug: 'cards', title: 'Открытки', hint: 'Подпишем от руки вашим текстом и вложим в букет.' },
+];
+
+/** Bouquets and balloons can be delivered on their own; a postcard only comes with them. */
+export const DELIVERABLE_KINDS: ProductKind[] = ['bouquet', 'balloon'];
+
+/** A catalog item: a bouquet, helium balloons, or a postcard sold alongside them. */
 export const bouquetSchema = z.object({
   kind: z.enum(PRODUCT_KINDS).default('bouquet'),
   id: z.string().regex(/^[a-z0-9-]{2,40}$/, 'id: латиница, цифры и дефис'),
@@ -128,7 +138,7 @@ export const tenantFileSchema = z.object({
   slug: z.string().regex(/^[a-z0-9-]{2,40}$/, 'Адрес магазина: латиница, цифры и дефис'),
   settings: shopSettingsSchema,
   bouquets: z.array(bouquetSchema).min(1).max(200)
-    .refine((l) => l.some((b) => b.kind === 'bouquet'), 'Нужен хотя бы один букет'),
+    .refine((l) => l.some((b) => b.kind !== 'card'), 'Нужен хотя бы один букет или шары'),
   owner: z.object({
     email: z.string().email().or(z.literal('')).default(''),
     telegramIds: z.array(z.number().int()).default([]),

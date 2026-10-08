@@ -101,6 +101,18 @@ describe('creating orders', () => {
     expect(o.bouquetPhoto).toBe('photos/white-tulips.jpg');
   });
 
+  it('balloons are delivered on their own (with a postcard), at full price', async () => {
+    const { status, body } = await api({ action: 'create_order', order: order({
+      slotStart: slot(7),
+      items: [{ productId: 'balloon-heart', quantity: 2 }, { productId: 'card-love', quantity: 1, note: 'Люблю' }],
+    }) });
+    expect(status).toBe(200);
+    expect(body.order!.price).toMatchObject({ bouquetCount: 0, balloonsSubtotal: 1380, cardsSubtotal: 250, discount: 0, deliveryFee: 400, total: 2030 });
+    expect(body.order!.bouquetPhoto).toBe('photos/balloon-heart.jpg');
+    const pub = (await db.rpc('shop_public', { p_slug: 'demo' }, { role: 'anon' })) as { bouquets: { id: string; stock: number }[] };
+    expect(pub.bouquets.find((b) => b.id === 'balloon-heart')!.stock).toBe(13);
+  });
+
   it('a postcard alone is not delivered; the same product twice is rejected', async () => {
     const r = await api({ action: 'create_order', order: order({ slotStart: slot(6), items: [{ productId: 'card-love', quantity: 1 }] }) });
     expect(r.body.error).toBe('no_bouquet');

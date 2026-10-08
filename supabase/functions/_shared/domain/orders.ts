@@ -65,6 +65,7 @@ export interface PriceBreakdown {
   bouquetsSubtotal: number;
   /** number of bouquets — the quantity discount counts these */
   bouquetCount: number;
+  balloonsSubtotal: number;
   cardsSubtotal: number;
   subtotal: number;
   discountPercent: number;
@@ -81,20 +82,22 @@ export function discountFor(s: Pick<ShopSettings, 'advance'>, bouquetCount: numb
 
 /**
  * Same arithmetic as public.create_order() in SQL. Whole rubles.
- * The quantity discount applies to bouquets only; postcards are always full price.
+ * The quantity discount applies to bouquets only; balloons and postcards are always full price.
  */
 export function priceOrder(s: Pick<ShopSettings, 'advance' | 'delivery'>, lines: PriceLine[]): PriceBreakdown {
   const bouquets = lines.filter((l) => l.kind === 'bouquet');
   const bouquetsSubtotal = bouquets.reduce((a, l) => a + l.price * l.quantity, 0);
   const bouquetCount = bouquets.reduce((a, l) => a + l.quantity, 0);
-  const cardsSubtotal = lines.filter((l) => l.kind === 'card').reduce((a, l) => a + l.price * l.quantity, 0);
+  const sum = (k: ProductKind) => lines.filter((l) => l.kind === k).reduce((a, l) => a + l.price * l.quantity, 0);
+  const balloonsSubtotal = sum('balloon');
+  const cardsSubtotal = sum('card');
   const discountPercent = discountFor(s, bouquetCount);
   const discount = Math.floor((bouquetsSubtotal * discountPercent) / 100);
-  const subtotal = bouquetsSubtotal + cardsSubtotal;
+  const subtotal = bouquetsSubtotal + balloonsSubtotal + cardsSubtotal;
   const afterDiscount = subtotal - discount;
   const free = s.delivery.freeFrom !== null && afterDiscount >= s.delivery.freeFrom;
   const deliveryFee = lines.length === 0 || free ? 0 : s.delivery.fee;
-  return { bouquetsSubtotal, bouquetCount, cardsSubtotal, subtotal, discountPercent, discount, deliveryFee, total: afterDiscount + deliveryFee };
+  return { bouquetsSubtotal, bouquetCount, balloonsSubtotal, cardsSubtotal, subtotal, discountPercent, discount, deliveryFee, total: afterDiscount + deliveryFee };
 }
 
 export function formatRub(n: number): string {

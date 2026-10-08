@@ -19,11 +19,11 @@ create table public.shop_owners (
   primary key (shop_id, user_id)
 );
 
--- Catalog: bouquets and postcards (kind = 'card') sold alongside them.
+-- Catalog: bouquets, helium balloons and postcards (kind = 'card') sold alongside them.
 create table public.bouquets (
   shop_id uuid not null references public.shops(id) on delete cascade,
   id text not null check (id ~ '^[a-z0-9-]{2,40}$'),
-  kind text not null default 'bouquet' check (kind in ('bouquet', 'card')),
+  kind text not null default 'bouquet' check (kind in ('bouquet', 'balloon', 'card')),
   name text not null check (char_length(name) between 2 and 80),
   description text not null default '' check (char_length(description) <= 600),
   price integer not null check (price > 0),
@@ -47,8 +47,9 @@ create table public.orders (
   updated_at timestamptz not null default now(),
   slot_start timestamptz not null,
   slot_seq integer not null check (slot_seq >= 1),
-  bouquet_count integer not null check (bouquet_count >= 1),
+  bouquet_count integer not null check (bouquet_count >= 0),
   bouquets_subtotal integer not null,
+  balloons_subtotal integer not null default 0,
   cards_subtotal integer not null default 0,
   subtotal integer not null,
   discount_percent numeric not null default 0,
@@ -74,7 +75,7 @@ create table public.order_items (
   order_id uuid not null references public.orders(id) on delete cascade,
   line integer not null,
   product_id text not null,
-  kind text not null check (kind in ('bouquet', 'card')),
+  kind text not null check (kind in ('bouquet', 'balloon', 'card')),
   name text not null,
   photo text not null,
   quantity integer not null check (quantity between 1 and 99),
@@ -169,9 +170,9 @@ language sql stable as $$
     'items', (select coalesce(jsonb_agg(jsonb_build_object('productId', i.product_id, 'kind', i.kind, 'name', i.name,
                 'photo', i.photo, 'quantity', i.quantity, 'unitPrice', i.unit_price, 'note', i.note) order by i.line), '[]')
               from order_items i where i.order_id = o.id),
-    'bouquetPhoto', (select i.photo from order_items i where i.order_id = o.id order by (i.kind <> 'bouquet'), i.line limit 1),
+    'bouquetPhoto', (select i.photo from order_items i where i.order_id = o.id order by (i.kind = 'card'), (i.kind <> 'bouquet'), i.line limit 1),
     'price', jsonb_build_object('bouquetsSubtotal', o.bouquets_subtotal, 'bouquetCount', o.bouquet_count,
-      'cardsSubtotal', o.cards_subtotal, 'subtotal', o.subtotal,
+      'balloonsSubtotal', o.balloons_subtotal, 'cardsSubtotal', o.cards_subtotal, 'subtotal', o.subtotal,
       'discountPercent', o.discount_percent, 'discount', o.discount, 'deliveryFee', o.delivery_fee, 'total', o.total),
     'name', o.name, 'phone', o.phone, 'contactChannel', o.contact_channel, 'contactHandle', o.contact_handle,
     'address', o.address, 'comment', o.comment,
@@ -261,7 +262,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   s shops; b bouquets; o orders; it jsonb;
   v_start timestamptz; v_qty int; v_key uuid; v_problem text; v_seq int; v_cap int; v_line int := 0;
-  v_bsub int := 0; v_csub int := 0; v_bcount int := 0; v_pct numeric; v_disc int; v_fee int; v_free int; v_total int;
+  v_bsub int := 0; v_lsub int := 0; v_csub int := 0; v_main int := 0; v_bcount int := 0; v_pct numeric; v_disc int; v_fee int; v_free int; v_total int;
   v_constraint text;
 begin
   perform assert_service();
@@ -309,12 +310,15 @@ begin
     v_qty := (it->>'quantity')::int;
     if not b.in_stock or (b.stock is not null and b.stock < v_qty) then perform err('out_of_stock', b.name); end if;
     if b.kind = 'bouquet' then
-      v_bsub := v_bsub + b.price * v_qty; v_bcount := v_bcount + v_qty;
+      v_bsub := v_bsub + b.price * v_qty; v_bcount := v_bcount + v_qty; v_main := v_main + 1;
+    elsif b.kind = 'balloon' then
+      v_lsub := v_lsub + b.price * v_qty; v_main := v_main + 1;
     else
       v_csub := v_csub + b.price * v_qty;
     end if;
   end loop;
-  if v_bcount = 0 then perform err('no_bouquet'); end if;
+  -- a postcard travels with a bouquet or balloons, never alone
+  if v_main = 0 then perform err('no_bouquet'); end if;
 
   v_cap := coalesce((s.settings->'delivery'->>'slotCapacity')::int, 1);
   select min(g) into v_seq from generate_series(1, v_cap) g
@@ -326,18 +330,18 @@ begin
   v_pct := discount_percent(s.settings, v_bcount);
   v_disc := floor(v_bsub * v_pct / 100);
   v_free := (s.settings->'delivery'->>'freeFrom')::int;
-  v_fee := case when v_free is not null and v_bsub + v_csub - v_disc >= v_free then 0
+  v_fee := case when v_free is not null and v_bsub + v_lsub + v_csub - v_disc >= v_free then 0
                 else coalesce((s.settings->'delivery'->>'fee')::int, 0) end;
-  v_total := v_bsub + v_csub - v_disc + v_fee;
+  v_total := v_bsub + v_lsub + v_csub - v_disc + v_fee;
 
   update shops set order_counter = order_counter + 1 where id = s.id returning * into s;
 
   begin
     insert into orders (shop_id, number, token, idempotency_key, slot_start, slot_seq, bouquet_count, bouquets_subtotal,
-      cards_subtotal, subtotal, discount_percent, discount, delivery_fee, total,
+      balloons_subtotal, cards_subtotal, subtotal, discount_percent, discount, delivery_fee, total,
       name, phone, contact_channel, contact_handle, address, comment)
     values (s.id, s.order_counter, replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), v_key,
-      v_start, v_seq, v_bcount, v_bsub, v_csub, v_bsub + v_csub, v_pct, v_disc, v_fee, v_total,
+      v_start, v_seq, v_bcount, v_bsub, v_lsub, v_csub, v_bsub + v_lsub + v_csub, v_pct, v_disc, v_fee, v_total,
       trim(p->>'name'), p->>'phone', p->>'contactChannel', p->>'contactHandle', trim(p->>'address'),
       left(trim(coalesce(p->>'comment', '')), 500))
     returning * into o;
@@ -475,7 +479,7 @@ begin
   if char_length(coalesce(p->>'name', '')) not between 2 and 80 then perform err('bad_bouquet', 'name'); end if;
   if coalesce((p->>'price')::int, 0) <= 0 then perform err('bad_bouquet', 'price'); end if;
   if coalesce(p->>'photo', '') = '' then perform err('bad_bouquet', 'photo'); end if;
-  if coalesce(p->>'kind', 'bouquet') not in ('bouquet', 'card') then perform err('bad_bouquet', 'kind'); end if;
+  if coalesce(p->>'kind', 'bouquet') not in ('bouquet', 'balloon', 'card') then perform err('bad_bouquet', 'kind'); end if;
   insert into bouquets (shop_id, id, kind, name, description, price, photo, in_stock, stock, sort)
   values (p_shop, p->>'id', coalesce(p->>'kind', 'bouquet'), p->>'name', left(coalesce(p->>'description', ''), 600), (p->>'price')::int, p->>'photo',
           coalesce((p->>'inStock')::boolean, true), (p->>'stock')::int, coalesce((p->>'sort')::int, 0))

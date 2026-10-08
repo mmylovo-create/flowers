@@ -171,6 +171,39 @@
       "sort": 6
     },
     {
+      "kind": "balloon",
+      "id": "balloons-pastel",
+      "name": "Шары «Нежность», 7 шт.",
+      "description": "Связка из семи латексных шаров с гелием в пастельных тонах: пудровый, мятный, сливочный. С лентами в цвет.",
+      "price": 1750,
+      "photo": "photos/balloons-pastel.jpg",
+      "inStock": true,
+      "stock": null,
+      "sort": 51
+    },
+    {
+      "kind": "balloon",
+      "id": "balloon-heart",
+      "name": "Шар-сердце фольгированный",
+      "description": "Розовое фольгированное сердце 45 см с гелием. Держит форму до двух недель.",
+      "price": 690,
+      "photo": "photos/balloon-heart.jpg",
+      "inStock": true,
+      "stock": 15,
+      "sort": 52
+    },
+    {
+      "kind": "balloon",
+      "id": "balloons-birthday",
+      "name": "Шары «С днём рождения», 5 шт.",
+      "description": "Пять шаров с гелием и надписью «С днём рождения» золотом.",
+      "price": 1450,
+      "photo": "photos/balloons-birthday.jpg",
+      "inStock": true,
+      "stock": null,
+      "sort": 53
+    },
+    {
       "kind": "card",
       "id": "card-birthday",
       "name": "Открытка «С днём рождения»",

@@ -36,7 +36,8 @@ type Facts = NonNullable<Awaited<ReturnType<typeof buildFacts>>>;
 
 export function factLines(f: Facts): Record<string, string> {
   const s = f.shop.settings;
-  const inStock = f.shop.bouquets.filter((b) => b.inStock && b.kind !== 'card');
+  const inStock = f.shop.bouquets.filter((b) => b.inStock && b.kind === 'bouquet');
+  const balloons = f.shop.bouquets.filter((b) => b.inStock && b.kind === 'balloon');
   const cards = f.shop.bouquets.filter((b) => b.inStock && b.kind === 'card');
   const out: Record<string, string> = {
     hours: `Время работы: ${hoursSummary(s)}. Сейчас ${f.open ? 'открыто' : 'закрыто'}.`,
@@ -44,8 +45,11 @@ export function factLines(f: Facts): Record<string, string> {
     contacts: `Телефон: ${formatPhone(s.phone)}${s.telegram ? `, Telegram ${s.telegram.startsWith('@') ? s.telegram : '@' + s.telegram}` : ''}${s.vk ? `, VK vk.com/${s.vk}` : ''}.`,
     delivery: `Доставка по городу от 1 часа${s.delivery.zone ? ` (${s.delivery.zone})` : ''}: ${s.delivery.fee ? formatRub(s.delivery.fee) : 'бесплатно'}${s.delivery.freeFrom !== null ? `, бесплатно от ${formatRub(s.delivery.freeFrom)}` : ''}. ${f.nearest ? `Ближайшее свободное время: ${f.nearest}.` : 'Свободного времени на ближайшую неделю нет — позвоните нам.'}`,
     stock: inStock.length
-      ? `В наличии: ${inStock.map((b) => `${b.name} — ${formatRub(b.price)}`).join('; ')}.`
+      ? `В наличии: ${inStock.map((b) => `${b.name} — ${formatRub(b.price)}`).join('; ')}.${balloons.length ? ` Ещё есть воздушные шары: ${balloons.map((c) => c.name).join(', ')}.` : ''}`
       : 'Сейчас нет букетов в наличии.',
+    balloons: balloons.length
+      ? `Воздушные шары с гелием: ${balloons.map((c) => `${c.name} — ${formatRub(c.price)}`).join('; ')}. Можно заказать отдельно или вместе с букетом.`
+      : 'Воздушных шаров сейчас нет в наличии.',
     cards: cards.length
       ? `Открытки к букету: ${cards.map((c) => `${c.name} — ${formatRub(c.price)}`).join('; ')}. Текст напишем от руки — укажите его при заказе.`
       : 'Открыток сейчас нет.',
@@ -70,6 +74,7 @@ const INTENTS: { key: string; re: RegExp }[] = [
   { key: 'address', re: /адрес|где (вы|находит)|самовывоз|как добрат/ },
   { key: 'contacts', re: /телефон|позвон|связат|телеграм|telegram|(^|[^а-яa-z])(вк|vk)([^а-яa-z]|$)|написать/ },
   { key: 'cards', re: /открытк|подпис|записк/ },
+  { key: 'balloons', re: /шар|гели/ },
   { key: 'stock', re: /налич|есть ли|какие букет|что есть|ассортимент|каталог/ },
 ];
 

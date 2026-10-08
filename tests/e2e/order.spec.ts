@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { fillCustomer, firstFreeSlot, openOrderForm, SHOP, tomorrow } from './helpers';
 
 test('bouquet page offers a postcard; basket → order with both, then «Мои заказы» and cancel', async ({ page }) => {
-  await page.goto(`${SHOP}/bouquets`);
+  await page.goto(`${SHOP}/catalog/bouquets`);
   await page.getByTestId('bouquet-morning-garden').getByRole('link', { name: 'Утренний сад' }).click();
   await expect(page).toHaveURL(/\/s\/demo\/b\/morning-garden$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Утренний сад' })).toBeVisible();
@@ -138,4 +138,22 @@ test('basket suggests a postcard when there is none; a postcard alone cannot be 
   await expect(page.getByText('Добавьте букет').first()).toBeVisible();
   await page.getByRole('button', { name: 'Убрать Крафт-открытка' }).click();
   await expect(page.getByText('В корзине пока пусто')).toBeVisible();
+});
+
+test('balloons can be ordered on their own, with a postcard', async ({ page }) => {
+  await page.goto(`${SHOP}/b/balloons-pastel`);
+  await page.getByTestId('card-option-card-birthday').click();
+  await page.getByLabel('Текст открытки').fill('Ура!');
+  await page.getByTestId('add-to-cart').click();
+  await page.goto(`${SHOP}/order`);
+  await expect(page.getByText('Воздушные шары').first()).toBeVisible();
+  await page.getByTestId(`day-${tomorrow()}`).click();
+  const { slot } = await firstFreeSlot(page);
+  await slot.click();
+  await fillCustomer(page, 'Шарик Тестов');
+  // 1750 + 250, delivery 400 (below the free-delivery threshold)
+  await expect(page.getByTestId('total')).toHaveText(/2\s400 ₽/);
+  await page.getByTestId('submit-order').click();
+  await expect(page.getByText('Заказ оформлен!')).toBeVisible();
+  await expect(page.getByTestId('order-item')).toHaveCount(2);
 });

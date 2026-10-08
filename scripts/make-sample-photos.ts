@@ -102,6 +102,49 @@ function cardSvg(id: string, name: string, seed: number) {
   </svg>`;
 }
 
+const BALLOON_STYLES: Record<string, { colors: string[]; shape: 'round' | 'heart'; count: number; text?: string }> = {
+  'balloons-pastel': { colors: ['#F6C9D3', '#BFE3D2', '#FBE8C8', '#D9CCF2', '#F6C9D3', '#BFE3D2', '#FBE8C8'], shape: 'round', count: 7 },
+  'balloon-heart': { colors: ['#EE8FA6'], shape: 'heart', count: 1 },
+  'balloons-birthday': { colors: ['#F4A98C', '#F7C1CC', '#C7B3E6', '#BFE3D2', '#F3D27A'], shape: 'round', count: 5, text: 'С днём рождения' },
+};
+
+/** A bunch of helium balloons on ribbons, with a soft highlight on each. */
+function balloonSvg(id: string, name: string, seed: number) {
+  const st = BALLOON_STYLES[id] ?? { colors: ['#F6C9D3', '#BFE3D2', '#FBE8C8'], shape: 'round' as const, count: 3 };
+  const R = rng(seed);
+  const pal = PALETTES[(seed + 2) % PALETTES.length];
+  const knotX = 450, knotY = 760;
+  let strings = '';
+  let shapes = '';
+  const pos: { x: number; y: number; c: string }[] = [];
+  if (st.shape === 'heart') {
+    pos.push({ x: 450, y: 360, c: st.colors[0] });
+  } else {
+    for (let i = 0; i < st.count; i++) {
+      const a = -Math.PI / 2 + (i - (st.count - 1) / 2) * 0.42 + (R() - 0.5) * 0.12;
+      const r = 300 + R() * 90;
+      pos.push({ x: knotX + Math.cos(a) * r * 0.95, y: knotY + Math.sin(a) * r * 1.25 - 40, c: st.colors[i % st.colors.length] });
+    }
+  }
+  for (const p of pos) {
+    strings += `<path d="M${p.x.toFixed(1)} ${(p.y + (st.shape === 'heart' ? 150 : 105)).toFixed(1)} Q ${((p.x + knotX) / 2 + 30).toFixed(1)} ${((p.y + knotY) / 2).toFixed(1)} ${knotX} ${knotY}" stroke="#B9A6B0" stroke-width="2.5" fill="none"/>`;
+    if (st.shape === 'heart') {
+      shapes += `<path d="M450 515 C 300 420 250 330 300 255 C 345 190 425 205 450 270 C 475 205 555 190 600 255 C 650 330 600 420 450 515 Z" fill="${p.c}"/>
+        <path d="M335 265 C 350 235 385 228 405 245" stroke="#fff" stroke-opacity=".7" stroke-width="14" fill="none" stroke-linecap="round"/>`;
+    } else {
+      shapes += `<g><ellipse cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" rx="88" ry="104" fill="${p.c}"/>
+        <path d="M${(p.x - 8).toFixed(1)} ${(p.y + 102).toFixed(1)} l 8 14 l 8 -14 z" fill="${p.c}"/>
+        <ellipse cx="${(p.x - 32).toFixed(1)}" cy="${(p.y - 42).toFixed(1)}" rx="18" ry="30" fill="#fff" opacity=".45" transform="rotate(-25 ${(p.x - 32).toFixed(1)} ${(p.y - 42).toFixed(1)})"/></g>`;
+    }
+  }
+  const text = st.text ? `<text x="450" y="860" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="44" fill="#B98A3A">${st.text}</text>` : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${pal.bg[0]}"/><stop offset="1" stop-color="${pal.bg[1]}"/></linearGradient></defs>
+    <rect width="100%" height="100%" fill="url(#g)"/>${strings}${shapes}
+    <path d="M${knotX - 18} ${knotY} q 18 26 36 0" stroke="#C4506D" stroke-width="6" fill="none"/>${text}<title>${name}</title>
+  </svg>`;
+}
+
 function logoSvg(name: string, accent: string) {
   const letter = name.trim()[0]?.toUpperCase() ?? '✿';
   let petals = '';
@@ -132,7 +175,7 @@ export async function makeSamplePhotos(slug: string, force = false) {
   let i = 0;
   for (const b of t.bouquets) {
     if (!/^https?:/.test(b.photo)) {
-      const svg = b.kind === 'card' ? cardSvg(b.id, b.name, 3 + i) : bouquetSvg(900, 900, PALETTES[i % PALETTES.length], 31 + i * 17);
+      const svg = b.kind === 'card' ? cardSvg(b.id, b.name, 3 + i) : b.kind === 'balloon' ? balloonSvg(b.id, b.name, 5 + i) : bouquetSvg(900, 900, PALETTES[i % PALETTES.length], 31 + i * 17);
       await write(b.photo, svg, 900, 900);
     }
     i++;

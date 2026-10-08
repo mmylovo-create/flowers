@@ -52,7 +52,7 @@ test('order reaches the cabinet and the Telegram bot; owner manages the shop fro
   await expect(customer.getByTestId('assistant-answer')).toContainText(new RegExp(`Белые тюльпаны.+${String(price).slice(0, 1)}\\s${String(price).slice(1)} ₽`));
 
   // stock switch in the cabinet → «Нет в наличии» on the site
-  await page.getByRole('button', { name: 'Букеты и наличие' }).click();
+  await page.getByRole('button', { name: 'Товары и наличие' }).click();
   const sw = page.getByTestId('owner-bouquet-peach-box').getByRole('switch');
   await sw.click();
   await customer.goto(`${SHOP}/bouquets`);

@@ -90,7 +90,7 @@ export default function Admin() {
       </HStack>
       <TabList value={tab} onChange={setTab} overflow="scroll" hasDivider>
         <Tab value="orders" label="Заказы" />
-        <Tab value="bouquets" label="Букеты и наличие" />
+        <Tab value="bouquets" label="Товары и наличие" />
         <Tab value="shop" label="Магазин" />
         <Tab value="telegram" label="Telegram" />
       </TabList>

@@ -48,7 +48,7 @@ export default function MyOrders() {
           icon={<ReceiptIcon size={40} aria-hidden />}
           title="Заказов пока нет"
           description="Выберите букет и время — заказ появится здесь."
-          actions={<Button label="Выбрать букет" variant="primary" href={`/s/${slug}/bouquets`} />}
+          actions={<Button label="Открыть каталог" variant="primary" href={`/s/${slug}/catalog`} />}
         />
       )}
     </VStack>

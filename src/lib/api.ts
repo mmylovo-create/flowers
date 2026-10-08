@@ -4,7 +4,7 @@
 import { addDays } from 'date-fns';
 import {
   canCancel, cancelDeadline, errorMessage, localDay, orderInputSchema, priceOrder, validateSlot,
-  type OrderInput, type OrderView, type PublicShop,
+  type OrderInput, type OrderView, type PublicShop, DELIVERABLE_KINDS,
 } from '@domain';
 import { answerQuestion } from '@server/assistant.ts';
 import type { Db } from '@server/server.ts';
@@ -113,11 +113,11 @@ export function sampleApi(tenant: BundledTenant): ShopApi {
         if (!p.inStock || (p.stock !== null && p.stock < i.quantity)) throw new ApiError('out_of_stock');
         return { productId: p.id, kind: p.kind, name: p.name, photo: p.photo, quantity: i.quantity, unitPrice: p.price, note: p.kind === 'card' ? i.note : '' };
       });
-      if (!items.some((i) => i.kind === 'bouquet')) throw new ApiError('no_bouquet');
+      if (!items.some((i) => DELIVERABLE_KINDS.includes(i.kind))) throw new ApiError('no_bouquet');
       const o: SampleOrder = {
         id: crypto.randomUUID(), number: list.length + 1, token: randomToken(), status: 'new',
         createdAt: new Date().toISOString(), slotStart: start, items,
-        bouquetPhoto: (items.find((i) => i.kind === 'bouquet') ?? items[0]).photo,
+        bouquetPhoto: (items.find((i) => i.kind === 'bouquet') ?? items.find((i) => i.kind !== 'card') ?? items[0]).photo,
         price: priceOrder(shop.settings, items.map((i) => ({ price: i.unitPrice, quantity: i.quantity, kind: i.kind }))), name: v.name, phone: v.phone,
         contactChannel: v.contactChannel, contactHandle: v.contactHandle, address: v.address, comment: v.comment,
         canCancel: true, cancelDeadline: cancelDeadline(shop.settings, start).toISOString(), shopSlug: shop.slug, idempotencyKey: v.idempotencyKey,
