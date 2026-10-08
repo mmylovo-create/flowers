@@ -96,8 +96,19 @@ test('catalog: subcategories Букеты, Воздушные шары, Откр
   await expect(page).toHaveURL(/\/catalog\/bouquets$/);
 });
 
-test('home page leads to the other catalog sections', async ({ page }) => {
+test('section switcher: from home, and pinned at the top while the catalog scrolls', async ({ page }) => {
   await page.goto(`${SHOP}/`);
-  await page.getByTestId('home-category-balloons').click();
+  await page.getByRole('navigation', { name: 'Разделы каталога' }).getByRole('link', { name: 'Воздушные шары' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Воздушные шары' })).toBeVisible();
+  await page.goto(`${SHOP}/catalog`);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.6));
+  await page.waitForTimeout(300);
+  const tabs = page.getByRole('navigation', { name: 'Разделы каталога' });
+  await expect(tabs).toBeInViewport();
+  for (const name of ['Все', 'Букеты', 'Воздушные шары', 'Открытки']) await expect(tabs.getByRole('link', { name })).toBeInViewport();
+  await tabs.getByRole('link', { name: 'Открытки' }).click();
+  await expect(page).toHaveURL(/\/catalog\/cards$/);
+  await expect(tabs.getByRole('link', { name: 'Открытки' })).toHaveAttribute('aria-current', 'page');
+  await tabs.getByRole('link', { name: 'Все' }).click();
+  await expect(page).toHaveURL(/\/catalog$/);
 });

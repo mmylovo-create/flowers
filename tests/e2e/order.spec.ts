@@ -65,7 +65,7 @@ test('taken time is clearly marked and cannot be chosen', async ({ page, browser
   await expect(taken).toHaveAttribute('data-state', 'busy');
   await expect(taken).toContainText('Занято');
   await expect(taken).toHaveAttribute('aria-label', /занято/);
-  await taken.click({ force: true });
+  await taken.dispatchEvent('click'); // the button itself, wherever it is on screen
   await expect(taken).toHaveAttribute('aria-pressed', 'false');
   await other.context().close();
 });

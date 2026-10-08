@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { VStack, HStack } from '@astryxdesign/core/Layout';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { Button } from '@astryxdesign/core/Button';
@@ -9,6 +9,7 @@ import { CATEGORIES, type Product } from '@domain';
 import { useShop } from '../lib/shop';
 import { BouquetGrid } from '../components/shop';
 import { PageTitle, SampleBanner } from '../components/common';
+import { CategoryTabs } from '../components/CategoryTabs';
 
 /** How many items a category shows on the «Все» view before «Смотреть все». */
 const PREVIEW = 4;
@@ -29,15 +30,7 @@ export default function Catalog() {
     <VStack gap={6}>
       <SampleBanner />
       <PageTitle title={current?.title ?? 'Каталог'} subtitle={current?.hint ?? 'Букеты, воздушные шары и открытки — всё можно собрать в один заказ с одной доставкой.'} />
-      <nav className="chip-row" aria-label="Разделы каталога">
-        <NavLink to={base} end className="cat-chip">Все</NavLink>
-        {present.map((c) => (
-          <NavLink key={c.slug} to={`${base}/${c.slug}`} className="cat-chip" data-testid={`category-${c.slug}`}>
-            {c.title}
-            <span className="cat-chip__count">{shop.bouquets.filter((b) => b.kind === c.kind).length}</span>
-          </NavLink>
-        ))}
-      </nav>
+      <CategoryTabs sticky />
       <Switch label="Только в наличии" value={onlyInStock} onChange={setOnlyInStock} />
       {shown.map((c) => {
         const list = items(c.kind);

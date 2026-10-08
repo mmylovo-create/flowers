@@ -1,1 +1,0 @@
-import{Y as e}from"./padding.stylex-YKQ0fs2b.js";import{v as t}from"./useClickableContainer-BXZtgsxw.js";import{C as n}from"./index-DubL3Iqh.js";var r=e(),i={new:`yellow`,confirmed:`blue`,delivering:`teal`,done:`green`,cancelled_by_client:`gray`,cancelled_by_shop:`red`};function a({status:e}){return(0,r.jsx)(n,{label:t[e],color:i[e]})}export{a as t};

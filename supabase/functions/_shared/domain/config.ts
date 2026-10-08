@@ -53,10 +53,10 @@ export type ProductKind = (typeof PRODUCT_KINDS)[number];
 export const KIND_LABELS: Record<ProductKind, string> = { bouquet: 'Букет', balloon: 'Шары', card: 'Открытка' };
 
 /** Catalog subcategories, in the order they are shown. */
-export const CATEGORIES: { kind: ProductKind; slug: string; title: string; hint: string }[] = [
-  { kind: 'bouquet', slug: 'bouquets', title: 'Букеты', hint: 'Собираем в день доставки из свежих цветов.' },
-  { kind: 'balloon', slug: 'balloons', title: 'Воздушные шары', hint: 'Надуваем гелием перед доставкой — летают от 3 дней.' },
-  { kind: 'card', slug: 'cards', title: 'Открытки', hint: 'Подпишем от руки вашим текстом и вложим в букет.' },
+export const CATEGORIES: { kind: ProductKind; slug: string; title: string; short: string; hint: string }[] = [
+  { kind: 'bouquet', slug: 'bouquets', title: 'Букеты', short: 'Букеты', hint: 'Собираем в день доставки из свежих цветов.' },
+  { kind: 'balloon', slug: 'balloons', title: 'Воздушные шары', short: 'Шары', hint: 'Надуваем гелием перед доставкой — летают от 3 дней.' },
+  { kind: 'card', slug: 'cards', title: 'Открытки', short: 'Открытки', hint: 'Подпишем от руки вашим текстом и вложим в букет.' },
 ];
 
 /** Bouquets and balloons can be delivered on their own; a postcard only comes with them. */
