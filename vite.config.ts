@@ -87,6 +87,7 @@ export default defineConfig({
       '@server': join(ROOT, 'supabase/functions/_shared'),
     },
   },
+  base: process.env.VITE_BASE ?? '/',
   server: { port: 5173, host: true },
   preview: { port: 4173, host: true },
   build: { target: 'es2022', sourcemap: false },

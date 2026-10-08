@@ -48,7 +48,13 @@ export const discountTierSchema = z.object({
   percent: z.number().min(1).max(90),
 });
 
+export const PRODUCT_KINDS = ['bouquet', 'card'] as const;
+export type ProductKind = (typeof PRODUCT_KINDS)[number];
+export const KIND_LABELS: Record<ProductKind, string> = { bouquet: 'Букет', card: 'Открытка' };
+
+/** A catalog item: a bouquet or a postcard sold alongside bouquets. */
 export const bouquetSchema = z.object({
+  kind: z.enum(PRODUCT_KINDS).default('bouquet'),
   id: z.string().regex(/^[a-z0-9-]{2,40}$/, 'id: латиница, цифры и дефис'),
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(600).default(''),
@@ -59,6 +65,7 @@ export const bouquetSchema = z.object({
   sort: z.number().int().default(0),
 });
 export type Bouquet = z.infer<typeof bouquetSchema>;
+export type Product = Bouquet;
 
 export const reviewSchema = z.object({
   author: z.string().trim().min(1).max(60),
@@ -120,7 +127,8 @@ export type ShopSettings = z.infer<typeof shopSettingsSchema>;
 export const tenantFileSchema = z.object({
   slug: z.string().regex(/^[a-z0-9-]{2,40}$/, 'Адрес магазина: латиница, цифры и дефис'),
   settings: shopSettingsSchema,
-  bouquets: z.array(bouquetSchema).min(1).max(200),
+  bouquets: z.array(bouquetSchema).min(1).max(200)
+    .refine((l) => l.some((b) => b.kind === 'bouquet'), 'Нужен хотя бы один букет'),
   owner: z.object({
     email: z.string().email().or(z.literal('')).default(''),
     telegramIds: z.array(z.number().int()).default([]),

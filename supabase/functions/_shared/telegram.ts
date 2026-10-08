@@ -24,6 +24,7 @@ const HELP = [
   '/orders — ближайшие заказы и смена статуса',
   '/bouquets — наличие и цены (кнопки под каждым букетом)',
   '/add — добавить букет: пришлите фото с подписью «Название; Цена; Описание»',
+  '   (название начинается со слова «Открытка» — добавится открытка)',
   '/price <id> <цена> — изменить цену',
   '/stock <id> on|off|<количество> — изменить наличие',
   '/shop — выбрать магазин, если их несколько',
@@ -216,7 +217,7 @@ async function sendOrders(deps: ServerDeps, chat: number, shop: ShopRef) {
 }
 
 function bouquetLine(b: Bouquet) {
-  return `${b.inStock ? '✅' : '⛔'} ${b.name} — ${formatRub(b.price)}${b.stock !== null ? ` · ${b.stock} шт.` : ''}\nid: ${b.id}`;
+  return `${b.inStock ? '✅' : '⛔'} ${b.kind === 'card' ? '💌 ' : ''}${b.name} — ${formatRub(b.price)}${b.stock !== null ? ` · ${b.stock} шт.` : ''}\nid: ${b.id}`;
 }
 function bouquetButtons(b: Bouquet) {
   return {
@@ -240,12 +241,14 @@ async function createBouquet(
   reply: (t: string, m?: unknown) => Promise<unknown>, setState: (s: Session['state']) => Promise<unknown>,
 ) {
   const id = bouquetIdFromName(p.name);
+  // «Открытка …» in the name adds a postcard instead of a bouquet
+  const kind = /^открытк/i.test(p.name) ? 'card' : 'bouquet';
   const b = await call<Bouquet>(deps.db, 'tg_upsert_bouquet', {
     p_chat: chat, p_shop: shop.id,
-    p: { id, name: p.name, description: p.description, price: p.price, photo: p.photo, inStock: true, stock: null, sort: 100 },
+    p: { kind, id, name: p.name, description: p.description, price: p.price, photo: p.photo, inStock: true, stock: null, sort: 100 },
   });
   await setState({});
-  await reply(`Букет «${b.name}» за ${formatRub(b.price)} добавлен на сайт.\nid: ${b.id}`);
+  await reply(`${kind === 'card' ? 'Открытка' : 'Букет'} «${b.name}» за ${formatRub(b.price)} добавлен${kind === 'card' ? 'а' : ''} на сайт.\nid: ${b.id}`);
 }
 
 export function parsePrice(v: string): number | null {

@@ -65,6 +65,43 @@ function bouquetSvg(w: number, h: number, pal: Palette, seed: number, cx = w / 2
   </svg>`;
 }
 
+const CARD_STYLES: Record<string, { paper: string; ink: string; motif: 'heart' | 'balloons' | 'twig'; text: string }> = {
+  'card-love': { paper: '#FFF6F4', ink: '#C4506D', motif: 'heart', text: 'Люблю' },
+  'card-birthday': { paper: '#FFF9EE', ink: '#C27A3A', motif: 'balloons', text: 'С днём рождения' },
+};
+
+/** A postcard lying on a pastel table: paper, a soft shadow, a motif and a short line of lettering. */
+function cardSvg(id: string, name: string, seed: number) {
+  const st = CARD_STYLES[id] ?? { paper: '#E9DCC6', ink: '#7A5A3A', motif: 'twig' as const, text: '' };
+  const R = rng(seed);
+  const pal = PALETTES[seed % PALETTES.length];
+  let motif = '';
+  if (st.motif === 'heart') {
+    motif = `<path d="M450 470 C 380 410 330 360 360 315 C 385 280 430 290 450 330 C 470 290 515 280 540 315 C 570 360 520 410 450 470 Z" fill="${st.ink}" opacity=".85"/>`;
+  } else if (st.motif === 'balloons') {
+    for (let i = 0; i < 3; i++) {
+      const x = 390 + i * 60, y = 330 - (i % 2) * 30, c = pal.flowers[i % pal.flowers.length];
+      motif += `<ellipse cx="${x}" cy="${y}" rx="34" ry="42" fill="${i === 1 ? st.ink : c}" opacity=".85"/><path d="M${x} ${y + 42} q ${6 - R() * 12} 40 0 90" stroke="${st.ink}" stroke-width="2" fill="none"/>`;
+    }
+  } else {
+    motif = `<path d="M370 420 C 420 380 480 360 540 300" stroke="${pal.leaf}" stroke-width="5" fill="none" stroke-linecap="round"/>` +
+      [0, 1, 2, 3].map((i) => `<ellipse cx="${400 + i * 36}" cy="${400 - i * 30}" rx="12" ry="26" fill="${pal.leaf}" transform="rotate(${50 + i * 4} ${400 + i * 36} ${400 - i * 30})"/>`).join('') +
+      `<path d="M450 560 q -30 40 -70 30 M450 560 q 30 40 70 30" stroke="#B8875A" stroke-width="3" fill="none"/>`;
+  }
+  const lettering = st.text
+    ? `<text x="450" y="${st.motif === 'balloons' ? 520 : 545}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="${st.text.length > 10 ? 40 : 54}" fill="${st.ink}">${st.text}</text>`
+    : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${pal.bg[0]}"/><stop offset="1" stop-color="${pal.bg[1]}"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#7a4a5a" flood-opacity=".18"/></filter></defs>
+    <rect width="100%" height="100%" fill="url(#g)"/>
+    <g transform="rotate(-6 450 450)"><rect x="250" y="200" width="400" height="500" rx="10" fill="${st.paper}" filter="url(#sh)"/>
+    <rect x="270" y="220" width="360" height="460" rx="6" fill="none" stroke="${st.ink}" stroke-opacity=".25" stroke-width="2"/>
+    ${motif}${lettering}</g>
+    <title>${name}</title>
+  </svg>`;
+}
+
 function logoSvg(name: string, accent: string) {
   const letter = name.trim()[0]?.toUpperCase() ?? '✿';
   let petals = '';
@@ -94,7 +131,10 @@ export async function makeSamplePhotos(slug: string, force = false) {
   }
   let i = 0;
   for (const b of t.bouquets) {
-    if (!/^https?:/.test(b.photo)) await write(b.photo, bouquetSvg(900, 900, PALETTES[i % PALETTES.length], 31 + i * 17), 900, 900);
+    if (!/^https?:/.test(b.photo)) {
+      const svg = b.kind === 'card' ? cardSvg(b.id, b.name, 3 + i) : bouquetSvg(900, 900, PALETTES[i % PALETTES.length], 31 + i * 17);
+      await write(b.photo, svg, 900, 900);
+    }
     i++;
   }
   return made;

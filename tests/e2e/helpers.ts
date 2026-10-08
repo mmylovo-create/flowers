@@ -9,8 +9,12 @@ export function tomorrow(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow' }).format(new Date(Date.now() + 86_400_000));
 }
 
+/** Puts a bouquet into the basket from its page, then opens checkout on tomorrow. */
 export async function openOrderForm(page: Page, bouquet = 'morning-garden') {
-  await page.goto(`${SHOP}/order?bouquet=${bouquet}`);
+  await page.goto(`${SHOP}/b/${bouquet}`);
+  await page.getByTestId('add-to-cart').click();
+  await expect(page.getByText('Добавлено в корзину')).toBeVisible();
+  await page.goto(`${SHOP}/order`);
   await page.getByTestId(`day-${tomorrow()}`).click();
   await expect(page.locator('.slot').first()).toBeVisible();
 }

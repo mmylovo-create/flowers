@@ -56,9 +56,25 @@ describe('delivery time', () => {
 
 describe('prices and discounts', () => {
   it('applies the best quantity discount and free delivery threshold', () => {
-    expect(priceOrder(s, 3200, 1)).toMatchObject({ subtotal: 3200, discountPercent: 0, deliveryFee: 400, total: 3600 });
-    expect(priceOrder(s, 3200, 3)).toMatchObject({ discountPercent: 5, discount: 480, deliveryFee: 0, total: 9120 });
-    expect(priceOrder(s, 1000, 10)).toMatchObject({ discountPercent: 15, discount: 1500, total: 8500 });
+    const b = (price: number, quantity: number) => ({ price, quantity, kind: 'bouquet' as const });
+    expect(priceOrder(s, [b(3200, 1)])).toMatchObject({ subtotal: 3200, discountPercent: 0, deliveryFee: 400, total: 3600 });
+    expect(priceOrder(s, [b(3200, 3)])).toMatchObject({ discountPercent: 5, discount: 480, deliveryFee: 0, total: 9120 });
+    expect(priceOrder(s, [b(1000, 10)])).toMatchObject({ discountPercent: 15, discount: 1500, total: 8500 });
+  });
+
+  it('counts bouquets across lines for the discount; postcards are never discounted', () => {
+    const lines = [
+      { price: 3200, quantity: 2, kind: 'bouquet' as const },
+      { price: 4200, quantity: 1, kind: 'bouquet' as const },
+      { price: 250, quantity: 2, kind: 'card' as const },
+    ];
+    expect(priceOrder(s, lines)).toMatchObject({
+      bouquetCount: 3, bouquetsSubtotal: 10600, cardsSubtotal: 500, subtotal: 11100,
+      discountPercent: 5, discount: 530, deliveryFee: 0, total: 10570,
+    });
+    // a postcard does not count towards the 3-bouquet discount
+    expect(priceOrder(s, [{ price: 1000, quantity: 2, kind: 'bouquet' }, { price: 250, quantity: 1, kind: 'card' }]))
+      .toMatchObject({ discountPercent: 0, total: 2250 + 400 });
   });
 });
 
@@ -73,11 +89,12 @@ describe('customer input', () => {
 
   it('rejects incomplete orders with readable messages', () => {
     const r = orderInputSchema.safeParse({
-      shopSlug: 'demo', bouquetId: 'pion-cloud', quantity: 1, slotStart: '', name: 'А', phone: '123',
+      shopSlug: 'demo', items: [], slotStart: '', name: 'А', phone: '123',
       contactChannel: 'telegram', contactHandle: 'x', address: '', deliveryConfirmed: false, idempotencyKey: crypto.randomUUID(),
     });
     expect(r.success).toBe(false);
     const msgs = r.error!.issues.map((i) => i.message).join(' | ');
+    expect(msgs).toMatch(/Корзина пуста/);
     expect(msgs).toMatch(/время доставки/);
     expect(msgs).toMatch(/Телефон/);
     expect(msgs).toMatch(/Подтвердите доставку/);

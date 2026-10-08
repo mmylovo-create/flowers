@@ -1,25 +1,50 @@
 import { expect, test } from '@playwright/test';
-import { fillCustomer, firstFreeSlot, openOrderForm, SHOP } from './helpers';
+import { fillCustomer, firstFreeSlot, openOrderForm, SHOP, tomorrow } from './helpers';
 
-test('customer orders a bouquet, sees the details, finds it in «Мои заказы» and cancels it', async ({ page }) => {
-  await openOrderForm(page);
+test('bouquet page offers a postcard; basket → order with both, then «Мои заказы» and cancel', async ({ page }) => {
+  await page.goto(`${SHOP}/bouquets`);
+  await page.getByTestId('bouquet-morning-garden').getByRole('link', { name: 'Утренний сад' }).click();
+  await expect(page).toHaveURL(/\/s\/demo\/b\/morning-garden$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Утренний сад' })).toBeVisible();
+  await expect(page.getByTestId('product-price')).toHaveText(/4\s200 ₽/);
+  await expect(page.getByText('Кустовые розы, ранункулюсы и маттиола')).toBeVisible();
+  // the postcard is offered right away, nothing pre-selected
+  const offer = page.getByTestId('card-offer');
+  await expect(offer.getByRole('heading', { name: 'Добавить открытку?' })).toBeVisible();
+  await expect(offer.getByRole('radio', { checked: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Больше' }).click();
   await page.getByRole('button', { name: 'Больше' }).click();
   await expect(page.getByTestId('qty')).toHaveText('3');
   await expect(page.getByText('Скидка 5% за количество')).toBeVisible();
+  await page.getByTestId('card-option-card-love').click();
+  await page.getByLabel('Текст открытки').fill('С годовщиной! Люблю');
+  await expect(page.getByTestId('add-to-cart')).toContainText(/12\s850 ₽/);
+  await page.getByTestId('add-to-cart').click();
+  await expect(page.getByText('Добавлено в корзину')).toBeVisible();
+  await expect(page.getByTestId('cart-button')).toContainText('4');
+
+  await page.getByTestId('cart-button').click();
+  await expect(page.getByRole('heading', { name: 'Корзина и оформление' })).toBeVisible();
+  await expect(page.getByTestId('qty-morning-garden')).toHaveText('3');
+  await expect(page.getByTestId('cart-line-card-love').getByLabel('Текст открытки')).toHaveValue('С годовщиной! Люблю');
+  await page.getByTestId(`day-${tomorrow()}`).click();
   const { slot, time } = await firstFreeSlot(page);
   await slot.click();
   await expect(slot).toHaveAttribute('aria-pressed', 'true');
   await fillCustomer(page);
-  await expect(page.getByTestId('total')).toHaveText(/11\s970 ₽/);
+  // 3 × 4200 = 12 600 − 5% (630) + postcard 250 = 12 220, delivery free
+  await expect(page.getByTestId('total')).toHaveText(/12\s220 ₽/);
   await page.getByTestId('submit-order').click();
   await expect(page.getByText('Заказ оформлен!')).toBeVisible();
   await expect(page.getByRole('heading', { name: /Заказ №\d+/ })).toBeVisible();
   await expect(page.getByText(new RegExp(`${time}–`)).first()).toBeVisible();
   await expect(page.getByText('Москва, ул. Пушкина, 10, кв. 5')).toBeVisible();
+  await expect(page.getByTestId('order-item')).toHaveCount(2);
+  await expect(page.getByText('Текст открытки: «С годовщиной! Люблю»')).toBeVisible();
+  await expect(page.getByTestId('cart-button')).toHaveCount(0); // basket emptied
 
   await page.getByRole('navigation').getByRole('link', { name: 'Мои заказы' }).click();
-  await expect(page.getByTestId('my-order').first()).toContainText('Утренний сад × 3');
+  await expect(page.getByTestId('my-order').first()).toContainText('Утренний сад × 3, Открытка «Люблю»');
   await page.getByTestId('my-order').first().click();
   await page.getByTestId('cancel-order').click();
   await page.getByRole('button', { name: 'Отменить заказ' }).last().click();
@@ -73,11 +98,11 @@ test('pressing «Подтвердить» repeatedly creates one order', async (
   await btn.evaluate((b: HTMLElement) => { b.click(); b.click(); b.click(); });
   await expect(page.getByText('Заказ оформлен!')).toBeVisible();
   await page.goto(`${SHOP}/orders`);
-  await expect(page.getByTestId('my-order').filter({ hasText: 'Утренний сад × 1' })).toHaveCount(1);
+  await expect(page.getByTestId('my-order')).toHaveCount(1);
 });
 
 test('the earliest delivery is one hour from now', async ({ page }) => {
-  await page.goto(`${SHOP}/order`);
+  await openOrderForm(page);
   await expect(page.getByText(/Ближайшая доставка — не раньше \d\d:\d\d \(через час/)).toBeVisible();
   const today = await page.locator('.day-chip').first();
   if (await today.isDisabled()) test.skip(true, 'shop closed today');
@@ -99,4 +124,18 @@ test('form explains what is missing', async ({ page }) => {
   await expect(page.getByText('Проверьте заполненные поля')).toBeVisible();
   await expect(page.getByText('Укажите имя')).toBeVisible();
   await expect(page.getByText('Выберите время доставки')).toBeVisible();
+});
+
+test('basket suggests a postcard when there is none; a postcard alone cannot be ordered', async ({ page }) => {
+  await openOrderForm(page, 'white-tulips');
+  await expect(page.getByRole('heading', { name: 'Не забыли открытку?' })).toBeVisible();
+  await page.getByTestId('card-option-card-kraft').click();
+  await page.getByTestId('add-offered-card').click();
+  await expect(page.getByTestId('cart-line-card-kraft')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Не забыли открытку?' })).toHaveCount(0);
+  // remove the bouquet: only the postcard is left
+  await page.getByRole('button', { name: 'Убрать Белые тюльпаны' }).click();
+  await expect(page.getByText('Добавьте букет').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Убрать Крафт-открытка' }).click();
+  await expect(page.getByText('В корзине пока пусто')).toBeVisible();
 });

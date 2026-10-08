@@ -10,7 +10,7 @@ import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Skeleton } from '@astryxdesign/core/Skeleton';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Link } from '@astryxdesign/core/Link';
-import { formatPhone, formatRub, formatSlot, localDay, STATUS_LABELS, type OrderStatus, type OrderView } from '@domain';
+import { formatPhone, formatRub, formatSlot, localDay, orderSummary, STATUS_LABELS, type OrderStatus, type OrderView } from '@domain';
 import { useShop } from '../../lib/shop';
 import { telegramUrl } from '../../components/common';
 import { StatusToken } from '../../components/StatusToken';
@@ -53,7 +53,10 @@ export default function AdminOrders({ shopId }: { shopId: string }) {
                   <Text weight="bold" type="large">№{o.number} · {formatSlot(o.slotStart, s.timezone, s.delivery.slotMinutes)}</Text>
                   <StatusToken status={o.status} />
                 </HStack>
-                <Text>{o.bouquetName} × {o.quantity} — <b>{formatRub(o.price.total)}</b>{o.price.discountPercent ? ` (скидка ${o.price.discountPercent}%)` : ''}</Text>
+                <Text>{orderSummary(o)} — <b>{formatRub(o.price.total)}</b>{o.price.discountPercent ? ` (скидка ${o.price.discountPercent}%)` : ''}</Text>
+                {o.items.filter((i) => i.kind === 'card' && i.note).map((i) => (
+                  <Text key={i.productId}>💌 Текст открытки: «{i.note}»</Text>
+                ))}
                 <Text>{o.name}, <Link href={`tel:${o.phone}`}>{formatPhone(o.phone)}</Link>{' · '}
                   {o.contactChannel === 'telegram'
                     ? <Link href={telegramUrl(o.contactHandle)} target="_blank">{`Telegram ${o.contactHandle}`}</Link>

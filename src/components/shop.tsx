@@ -13,10 +13,12 @@ import { CalendarCheckIcon, SparkleIcon, StarIcon } from '@phosphor-icons/react'
 import { formatRub, type Bouquet } from '@domain';
 import { useShop } from '../lib/shop';
 import { myTokens } from '../lib/myOrders';
+import { useCart } from '../lib/cart';
 import { useLiquidGlass } from './useLiquidGlass';
 
 export function Hero() {
   const { shop, slug, media } = useShop();
+  const cart = useCart(slug);
   const s = shop.settings;
   const ctaRef = useRef<HTMLAnchorElement>(null);
   const [loaded, setLoaded] = useState(0);
@@ -33,7 +35,7 @@ export function Hero() {
         onLoad={() => setLoaded((n) => n + 1)}
       />
       {s.logo ? <img className="hero__logo" src={media(s.logo)} alt="" aria-hidden /> : null}
-      <RouterLink ref={ctaRef} to={`/s/${slug}/order`} className="hero__cta glass" data-testid="hero-cta">
+      <RouterLink ref={ctaRef} to={cart.count ? `/s/${slug}/order` : `/s/${slug}/bouquets`} className="hero__cta glass" data-testid="hero-cta">
         <span className="hero__cta-label">
           <CalendarCheckIcon size={24} weight="bold" aria-hidden />
           Записаться
@@ -45,24 +47,24 @@ export function Hero() {
 
 export function BouquetCard({ b }: { b: Bouquet }) {
   const { slug, media } = useShop();
+  const href = `/s/${slug}/b/${b.id}`;
   return (
-    <Card padding={0} elevation="low" className={b.inStock ? undefined : 'out-of-stock'} data-testid={`bouquet-${b.id}`}>
+    <Card padding={0} elevation="low" className={`product-tile${b.inStock ? '' : ' out-of-stock'}`} data-testid={`bouquet-${b.id}`}>
       <AspectRatio ratio={1}>
         <img className="cover" src={media(b.photo)} alt={b.name} loading="lazy" decoding="async" />
       </AspectRatio>
       <VStack gap={2} padding={4}>
         <HStack gap={2} justify="between" vAlign="start">
-          <Heading level={3}>{b.name}</Heading>
+          <Heading level={3}>
+            {/* the whole tile opens the product page */}
+            <RouterLink to={href} className="stretched-link">{b.name}</RouterLink>
+          </Heading>
           {!b.inStock ? <Token label="Нет в наличии" color="gray" size="sm" /> : null}
         </HStack>
         {b.description ? <Text color="secondary" maxLines={3}>{b.description}</Text> : null}
         <HStack gap={3} justify="between" vAlign="center">
           <Text type="large" weight="bold">{formatRub(b.price)}</Text>
-          {b.inStock ? (
-            <Button label="Заказать" variant="primary" href={`/s/${slug}/order?bouquet=${b.id}`} />
-          ) : (
-            <Button label="Нет в наличии" isDisabled />
-          )}
+          <Button label={b.inStock ? 'Выбрать' : 'Подробнее'} variant={b.inStock ? 'primary' : 'secondary'} href={href} tabIndex={-1} aria-hidden />
         </HStack>
       </VStack>
     </Card>

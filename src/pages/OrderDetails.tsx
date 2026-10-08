@@ -52,13 +52,16 @@ export default function OrderDetails() {
       </HStack>
       <Card padding={5} elevation="low">
         <VStack gap={4}>
-          <HStack gap={3} vAlign="center">
-            <img className="thumb" src={media(o.bouquetPhoto)} alt="" />
-            <VStack gap={0.5}>
-              <Text weight="semibold">{o.bouquetName} × {o.quantity}</Text>
-              <Text color="secondary">{formatRub(o.price.unitPrice)} за букет</Text>
-            </VStack>
-          </HStack>
+          {o.items.map((i) => (
+            <HStack key={i.productId} gap={3} vAlign="center" data-testid="order-item">
+              <img className="thumb" src={media(i.photo)} alt="" />
+              <VStack gap={0.5}>
+                <Text weight="semibold">{i.name} × {i.quantity}</Text>
+                <Text color="secondary">{formatRub(i.unitPrice)} за шт.</Text>
+                {i.note ? <Text>Текст открытки: «{i.note}»</Text> : null}
+              </VStack>
+            </HStack>
+          ))}
           <MetadataList>
             <MetadataListItem label="Доставка">{formatSlot(o.slotStart, s.timezone, s.delivery.slotMinutes)}</MetadataListItem>
             <MetadataListItem label="Адрес">{o.address}</MetadataListItem>
@@ -68,7 +71,8 @@ export default function OrderDetails() {
           </MetadataList>
           <Divider />
           <VStack gap={1}>
-            <HStack justify="between"><Text>Букеты</Text><Text>{formatRub(o.price.subtotal)}</Text></HStack>
+            <HStack justify="between"><Text>Букеты</Text><Text>{formatRub(o.price.bouquetsSubtotal)}</Text></HStack>
+            {o.price.cardsSubtotal ? <HStack justify="between"><Text>Открытки</Text><Text>{formatRub(o.price.cardsSubtotal)}</Text></HStack> : null}
             {o.price.discount ? <HStack justify="between"><Text color="accent">Скидка {o.price.discountPercent}%</Text><Text color="accent">−{formatRub(o.price.discount)}</Text></HStack> : null}
             <HStack justify="between"><Text>Доставка</Text><Text>{o.price.deliveryFee ? formatRub(o.price.deliveryFee) : 'бесплатно'}</Text></HStack>
             <HStack justify="between"><Text weight="bold" type="large">Итого</Text><Text weight="bold" type="large">{formatRub(o.price.total)}</Text></HStack>

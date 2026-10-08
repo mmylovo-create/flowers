@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatInTimeZone } from 'date-fns-tz';
 import { VStack, HStack } from '@astryxdesign/core/Layout';
@@ -9,15 +9,15 @@ import { Button } from '@astryxdesign/core/Button';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { TextArea } from '@astryxdesign/core/TextArea';
-import { Selector } from '@astryxdesign/core/Selector';
+import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { CheckboxInput } from '@astryxdesign/core/CheckboxInput';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Divider } from '@astryxdesign/core/Divider';
 import { Skeleton } from '@astryxdesign/core/Skeleton';
-import { MinusIcon, PlusIcon } from '@phosphor-icons/react';
+import { MinusIcon, PlusIcon, TrashIcon, ShoppingBagIcon } from '@phosphor-icons/react';
 import {
-  daySlots, deliveryDays, discountFor, earliestStart, formatRub, orderInputSchema, priceOrder,
+  daySlots, deliveryDays, earliestStart, formatRub, MAX_CARD_TEXT, orderInputSchema,
   type ContactChannel, type OrderInput,
 } from '@domain';
 import { useShop } from '../lib/shop';
@@ -25,6 +25,8 @@ import { ApiError, dayRange } from '../lib/api';
 import { rememberOrder } from '../lib/myOrders';
 import { PageTitle, SampleBanner } from '../components/common';
 import { useTelInput } from '../components/useTelInput';
+import { CardOffer } from '../components/CardOffer';
+import { cartDetails, useCart } from '../lib/cart';
 
 type Fields = Partial<Record<keyof OrderInput, string>>;
 
@@ -35,16 +37,12 @@ function newKey() {
 export default function Order() {
   const { shop, slug, api, media } = useShop();
   const s = shop.settings;
-  const [params] = useSearchParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const inStock = shop.bouquets.filter((b) => b.inStock);
-
-  const [bouquetId, setBouquetId] = useState(() => {
-    const wanted = params.get('bouquet');
-    return inStock.find((b) => b.id === wanted)?.id ?? inStock[0]?.id ?? '';
-  });
-  const [qty, setQty] = useState(1);
+  const cart = useCart(slug);
+  const { rows, price, hasBouquet, hasCard, unavailable } = cartDetails(cart.lines, shop.bouquets, s);
+  const [offerCard, setOfferCard] = useState<string | null>(null);
+  const [offerNote, setOfferNote] = useState('');
   const days = useMemo(() => deliveryDays(s, new Date()), [s]);
   const [day, setDay] = useState(() => days.find((d) => d.isOpen)?.date ?? days[0].date);
   const [slot, setSlot] = useState<string | null>(null);
@@ -59,7 +57,7 @@ export default function Order() {
   const phoneRef = useTelInput();
   const [formError, setFormError] = useState<string | null>(null);
   // One key per checkout attempt: pressing the button twice (or a network retry) can't create a copy.
-  const idemKey = useRef<string>(sessionStorage.getItem(`order-key:${slug}`) ?? newKey());
+  const idemKey = useRef<string>((() => { try { return sessionStorage.getItem(`order-key:${slug}`) ?? newKey(); } catch { return newKey(); } })());
   useEffect(() => { try { sessionStorage.setItem(`order-key:${slug}`, idemKey.current); } catch { /* ignore */ } }, [slug]);
 
   const range = dayRange(s.timezone, s.delivery.maxAdvanceDays);
@@ -76,16 +74,14 @@ export default function Order() {
     if (slot && !slots.some((x) => x.start === slot && x.state === 'free')) setSlot(null);
   }, [slots, slot]);
 
-  const bouquet = shop.bouquets.find((b) => b.id === bouquetId);
-  const price = bouquet ? priceOrder(s, bouquet.price, qty) : null;
-  const nextDiscount = s.advance.discounts.filter((d) => d.minQty > qty).sort((a, b) => a.minQty - b.minQty)[0];
-  const maxQty = Math.min(99, bouquet?.stock ?? 99);
+  const nextDiscount = s.advance.discounts.filter((d) => d.minQty > price.bouquetCount).sort((a, b) => a.minQty - b.minQty)[0];
   const earliest = formatInTimeZone(earliestStart(s, now), s.timezone, 'HH:mm');
 
   const create = useMutation({
     mutationFn: (input: OrderInput) => api.createOrder(input),
     onSuccess: (order) => {
       rememberOrder(slug, order.token);
+      cart.clear();
       try { sessionStorage.removeItem(`order-key:${slug}`); } catch { /* ignore */ }
       idemKey.current = newKey();
       void qc.invalidateQueries({ queryKey: ['busy', slug] });
@@ -110,10 +106,20 @@ export default function Order() {
     if (create.isPending) return;
     setFormError(null);
     const input = {
-      shopSlug: slug, bouquetId, quantity: qty, slotStart: slot ?? '', name, phone, contactChannel: channel,
+      shopSlug: slug,
+      items: rows.map((r) => ({ productId: r.product.id, quantity: r.line.quantity, note: r.product.kind === 'card' ? r.line.note.trim() : '' })),
+      slotStart: slot ?? '', name, phone, contactChannel: channel,
       contactHandle: handle, address, comment, deliveryConfirmed: confirmed, idempotencyKey: idemKey.current,
     };
     const parsed = orderInputSchema.safeParse(input);
+    if (!hasBouquet) {
+      setFormError('Добавьте в корзину хотя бы один букет — открытки доставляем вместе с букетом.');
+      return;
+    }
+    if (unavailable.length) {
+      setFormError(`Не хватает в наличии: ${unavailable.map((u) => u.product.name).join(', ')}. Уменьшите количество или уберите из корзины.`);
+      return;
+    }
     if (!parsed.success) {
       const f: Fields = {};
       for (const i of parsed.error.issues) f[i.path[0] as keyof OrderInput] ??= i.message;
@@ -125,11 +131,17 @@ export default function Order() {
     create.mutate(input as OrderInput);
   };
 
-  if (!inStock.length) {
+  if (!rows.length) {
     return (
       <VStack gap={6}>
-        <PageTitle title="Оформление заказа" />
-        <Banner status="info" title="Сейчас нет букетов в наличии" description="Позвоните нам — соберём букет на заказ." />
+        <SampleBanner />
+        <PageTitle title="Корзина" />
+        <EmptyState
+          icon={<ShoppingBagIcon size={40} aria-hidden />}
+          title="В корзине пока пусто"
+          description="Откройте букет, выберите количество и открытку — и возвращайтесь сюда, чтобы выбрать время доставки."
+          actions={<Button label="Выбрать букет" variant="primary" href={`/s/${slug}/bouquets`} />}
+        />
       </VStack>
     );
   }
@@ -137,36 +149,55 @@ export default function Order() {
   return (
     <VStack gap={6}>
       <SampleBanner />
-      <PageTitle title="Оформление заказа" subtitle="Доставка по городу от 1 часа" />
+      <PageTitle title="Корзина и оформление" subtitle="Доставка по городу от 1 часа" />
 
       <Card padding={5} elevation="low">
         <VStack gap={4}>
-          <Heading level={2}>1. Букет</Heading>
-          <Selector
-            label="Букет"
-            value={bouquetId}
-            onChange={(v) => { setBouquetId(v); setQty(1); }}
-            options={inStock.map((b) => ({ value: b.id, label: `${b.name} — ${formatRub(b.price)}` }))}
-          />
-          {bouquet ? (
-            <HStack gap={3} vAlign="center">
-              <img className="thumb" src={media(bouquet.photo)} alt="" />
-              <VStack gap={0.5}>
-                <Text weight="semibold">{bouquet.name}</Text>
-                <Text color="secondary" maxLines={2}>{bouquet.description}</Text>
-              </VStack>
-            </HStack>
-          ) : null}
-          <HStack gap={3} justify="between" vAlign="center">
-            <Text weight="semibold">Количество</Text>
-            <span className="qty">
-              <IconButton label="Меньше" icon={<MinusIcon size={20} />} onClick={() => setQty((q) => Math.max(1, q - 1))} isDisabled={qty <= 1} />
-              <span className="qty__value" aria-live="polite" data-testid="qty">{qty}</span>
-              <IconButton label="Больше" icon={<PlusIcon size={20} />} onClick={() => setQty((q) => Math.min(maxQty, q + 1))} isDisabled={qty >= maxQty} />
-            </span>
+          <HStack justify="between" vAlign="center">
+            <Heading level={2}>1. Корзина</Heading>
+            <Button label="Добавить букет" variant="ghost" href={`/s/${slug}/bouquets`} />
           </HStack>
-          {discountFor(s, qty) > 0 ? <Text color="accent" weight="semibold">Скидка {discountFor(s, qty)}% за количество</Text> : null}
-          {nextDiscount ? <Text color="secondary">От {nextDiscount.minQty} шт. — скидка {nextDiscount.percent}%</Text> : null}
+          {rows.map(({ line, product }) => {
+            const max = Math.min(99, product.stock ?? 99);
+            const short = !product.inStock || (product.stock !== null && product.stock < line.quantity);
+            return (
+              <div className="cart-line" key={product.id} data-testid={`cart-line-${product.id}`}>
+                <img className="thumb" src={media(product.photo)} alt="" />
+                <div className="cart-line__body">
+                  <HStack justify="between" vAlign="start" gap={2}>
+                    <Text weight="semibold">{product.name}</Text>
+                    <Text weight="semibold">{formatRub(product.price * line.quantity)}</Text>
+                  </HStack>
+                  <HStack justify="between" vAlign="center" gap={2}>
+                    <span className="qty">
+                      <IconButton label={`Меньше: ${product.name}`} icon={<MinusIcon size={18} />} size="sm"
+                        onClick={() => cart.setQuantity(product.id, line.quantity - 1)} isDisabled={line.quantity <= 1} />
+                      <span className="qty__value" aria-live="polite" data-testid={`qty-${product.id}`}>{line.quantity}</span>
+                      <IconButton label={`Больше: ${product.name}`} icon={<PlusIcon size={18} />} size="sm"
+                        onClick={() => cart.setQuantity(product.id, line.quantity + 1)} isDisabled={line.quantity >= max} />
+                    </span>
+                    <IconButton label={`Убрать ${product.name}`} icon={<TrashIcon size={18} />} variant="ghost" size="sm" onClick={() => cart.remove(product.id)} />
+                  </HStack>
+                  {short ? <Text color="accent">Сейчас {product.inStock ? `в наличии только ${product.stock} шт.` : 'нет в наличии'}</Text> : null}
+                  {product.kind === 'card' ? (
+                    <TextArea label="Текст открытки" value={line.note} onChange={(v) => cart.setNote(product.id, v)} rows={2}
+                      maxLength={MAX_CARD_TEXT} isOptional placeholder="Напишем от руки" />
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+          {price.discountPercent ? <Text color="accent" weight="semibold">Скидка {price.discountPercent}% на букеты за количество</Text> : null}
+          {nextDiscount ? <Text color="secondary">От {nextDiscount.minQty} букетов в заказе — скидка {nextDiscount.percent}%</Text> : null}
+          {!hasBouquet ? <Banner status="info" title="Добавьте букет" description="Открытки доставляем вместе с букетом." /> : null}
+          {hasBouquet && !hasCard ? (
+            <VStack gap={3}>
+              <CardOffer value={offerCard} onChange={setOfferCard} note={offerNote} onNote={setOfferNote} title="Не забыли открытку?" />
+              {offerCard ? (
+                <Button label="Добавить открытку в заказ" onClick={() => { cart.add(offerCard, 1, offerNote.trim()); setOfferCard(null); setOfferNote(''); }} data-testid="add-offered-card" />
+              ) : null}
+            </VStack>
+          ) : null}
         </VStack>
       </Card>
 
@@ -245,16 +276,17 @@ export default function Order() {
           <TextInput label="Адрес доставки" value={address} onChange={setAddress} autoComplete="street-address" placeholder="Улица, дом, квартира" isRequired
             description={s.delivery.zone || undefined}
             status={fields.address ? { type: 'error', message: fields.address } : undefined} />
-          <TextArea label="Комментарий" value={comment} onChange={setComment} isOptional rows={2} placeholder="Текст открытки, домофон, кому вручить" />
+          <TextArea label="Комментарий" value={comment} onChange={setComment} isOptional rows={2} placeholder="Домофон, кому вручить, удобное время звонка" />
         </VStack>
       </Card>
 
       <Card padding={5} elevation="med">
         <VStack gap={3}>
           <Heading level={2}>4. Подтверждение</Heading>
-          {price ? (
+          {rows.length ? (
             <VStack gap={1}>
-              <HStack justify="between"><Text>{bouquet?.name} × {qty}</Text><Text>{formatRub(price.subtotal)}</Text></HStack>
+              {price.bouquetsSubtotal ? <HStack justify="between"><Text>Букеты: {price.bouquetCount} шт.</Text><Text>{formatRub(price.bouquetsSubtotal)}</Text></HStack> : null}
+              {price.cardsSubtotal ? <HStack justify="between"><Text>Открытки</Text><Text>{formatRub(price.cardsSubtotal)}</Text></HStack> : null}
               {price.discount ? <HStack justify="between"><Text color="accent">Скидка {price.discountPercent}%</Text><Text color="accent">−{formatRub(price.discount)}</Text></HStack> : null}
               <HStack justify="between"><Text>Доставка</Text><Text>{price.deliveryFee ? formatRub(price.deliveryFee) : 'бесплатно'}</Text></HStack>
               <Divider />

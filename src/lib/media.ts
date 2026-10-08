@@ -2,5 +2,5 @@
 export function mediaUrl(slug: string, path: string | null | undefined): string {
   if (!path) return '';
   if (/^(https?:|data:|blob:|\/)/.test(path)) return path;
-  return `/t/${slug}/${path.replace(/^\.?\//, '')}`;
+  return `${import.meta.env.BASE_URL}t/${slug}/${path.replace(/^\.?\//, '')}`;
 }

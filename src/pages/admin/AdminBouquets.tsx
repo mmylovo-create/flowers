@@ -5,6 +5,8 @@ import { Heading, Text } from '@astryxdesign/core/Text';
 import { Card } from '@astryxdesign/core/Card';
 import { Button } from '@astryxdesign/core/Button';
 import { Switch } from '@astryxdesign/core/Switch';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
+import { Token } from '@astryxdesign/core/Token';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { NumberInput } from '@astryxdesign/core/NumberInput';
 import { TextArea } from '@astryxdesign/core/TextArea';
@@ -19,7 +21,7 @@ import { useShop } from '../../lib/shop';
 import { ApiError } from '../../lib/api';
 import { ownerApi, uploadPhoto } from './ownerApi';
 
-const EMPTY: Bouquet = { id: '', name: '', description: '', price: 0, photo: '', inStock: true, stock: null, sort: 100 };
+const EMPTY: Bouquet = { kind: 'bouquet', id: '', name: '', description: '', price: 0, photo: '', inStock: true, stock: null, sort: 100 };
 
 function BouquetDialog({ shopId, initial, onClose }: { shopId: string; initial: Bouquet | null; onClose: () => void }) {
   const { media, slug } = useShop();
@@ -48,7 +50,11 @@ function BouquetDialog({ shopId, initial, onClose }: { shopId: string; initial: 
   return (
     <Dialog isOpen onOpenChange={(o) => !o && onClose()} width={520}>
       <VStack gap={4} padding={5}>
-        <Heading level={2}>{isNew ? 'Новый букет' : `Букет «${initial?.name}»`}</Heading>
+        <Heading level={2}>{isNew ? 'Новый товар' : `«${initial?.name}»`}</Heading>
+        <SegmentedControl label="Что это" value={b.kind} onChange={(v) => setB({ ...b, kind: v as Bouquet['kind'] })}>
+          <SegmentedControlItem value="bouquet" label="Букет" />
+          <SegmentedControlItem value="card" label="Открытка" />
+        </SegmentedControl>
         <TextInput label="Название" value={b.name} onChange={(v) => setB({ ...b, name: v })} isRequired />
         <TextArea label="Описание" value={b.description} onChange={(v) => setB({ ...b, description: v })} rows={3} />
         <HStack gap={3}>
@@ -83,8 +89,8 @@ export default function AdminBouquets({ shopId }: { shopId: string }) {
   return (
     <VStack gap={4}>
       <HStack gap={3} justify="between" vAlign="center">
-        <Heading level={2}>Букеты и наличие</Heading>
-        <Button label="Добавить букет" variant="primary" icon={<PlusIcon size={18} />} onClick={() => setEditing('new')} />
+        <Heading level={2}>Букеты, открытки и наличие</Heading>
+        <Button label="Добавить товар" variant="primary" icon={<PlusIcon size={18} />} onClick={() => setEditing('new')} />
       </HStack>
       {stock.isError ? <Banner status="error" title={(stock.error as Error).message} /> : null}
       {shop.bouquets.map((b) => (
@@ -92,7 +98,8 @@ export default function AdminBouquets({ shopId }: { shopId: string }) {
           <HStack gap={3} vAlign="center" wrap="wrap">
             <img className="thumb" src={media(b.photo)} alt="" />
             <VStack gap={0.5}>
-              <Text weight="semibold">{b.name}</Text>
+              <Text weight="semibold">{b.name}{b.kind === 'card' ? ' ' : ''}</Text>
+              {b.kind === 'card' ? <Token label="Открытка" color="pink" size="sm" /> : null}
               <Text color="secondary">{formatRub(b.price)}{b.stock !== null ? ` · остаток ${b.stock} шт.` : ''}</Text>
             </VStack>
             <HStack gap={2} vAlign="center" justify="end" wrap="wrap">

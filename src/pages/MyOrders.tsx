@@ -9,7 +9,7 @@ import { Button } from '@astryxdesign/core/Button';
 import { Skeleton } from '@astryxdesign/core/Skeleton';
 import { Banner } from '@astryxdesign/core/Banner';
 import { ReceiptIcon } from '@phosphor-icons/react';
-import { formatRub, formatSlot } from '@domain';
+import { formatRub, formatSlot, orderSummary } from '@domain';
 import { useShop } from '../lib/shop';
 import { myTokens } from '../lib/myOrders';
 import { PageTitle, SampleBanner } from '../components/common';
@@ -34,7 +34,7 @@ export default function MyOrders() {
               <Item
                 key={o.token}
                 startContent={<img className="thumb" src={media(o.bouquetPhoto)} alt="" />}
-                label={`№${o.number} · ${o.bouquetName} × ${o.quantity}`}
+                label={`№${o.number} · ${orderSummary(o)}`}
                 description={`${formatSlot(o.slotStart, s.timezone, s.delivery.slotMinutes)} · ${formatRub(o.price.total)}`}
                 endContent={<StatusToken status={o.status} />}
                 onClick={() => navigate(`/s/${slug}/orders/${o.token}`)}

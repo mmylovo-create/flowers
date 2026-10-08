@@ -124,6 +124,17 @@
       "inStock": true,
       "stock": null,
       "sort": 3
+    },
+    {
+      "kind": "card",
+      "id": "card-kraft",
+      "name": "Крафт-открытка",
+      "description": "Мини-открытка из крафтовой бумаги. Подпишем вашим текстом от руки.",
+      "price": 150,
+      "photo": "photos/card-kraft.jpg",
+      "inStock": true,
+      "stock": null,
+      "sort": 101
     }
   ],
   "owner": {

@@ -1,0 +1,43 @@
+{
+  "id": "/s/demo/",
+  "name": "Флёр",
+  "short_name": "Флёр",
+  "description": "Цветочная студия с доставкой по городу",
+  "lang": "ru",
+  "start_url": "/s/demo/",
+  "scope": "/s/demo/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF5F2",
+  "theme_color": "#FBF5F2",
+  "icons": [
+    {
+      "src": "/t/demo/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/t/demo/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/t/demo/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Букеты",
+      "url": "/s/demo/bouquets"
+    },
+    {
+      "name": "Мои заказы",
+      "url": "/s/demo/orders"
+    }
+  ]
+}

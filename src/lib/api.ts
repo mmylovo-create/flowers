@@ -107,13 +107,18 @@ export function sampleApi(tenant: BundledTenant): ShopApi {
       const start = new Date(v.slotStart).toISOString();
       const day = localDay(new Date(start), shop.settings.timezone);
       if ((busy(day, day)[start] ?? 0) >= shop.settings.delivery.slotCapacity) throw new ApiError('slot_busy');
-      const b = shop.bouquets.find((x) => x.id === v.bouquetId);
-      if (!b) throw new ApiError('bouquet_not_found');
-      if (!b.inStock || (b.stock !== null && b.stock < v.quantity)) throw new ApiError('out_of_stock');
+      const items = v.items.map((i) => {
+        const p = shop.bouquets.find((x) => x.id === i.productId);
+        if (!p) throw new ApiError('bouquet_not_found');
+        if (!p.inStock || (p.stock !== null && p.stock < i.quantity)) throw new ApiError('out_of_stock');
+        return { productId: p.id, kind: p.kind, name: p.name, photo: p.photo, quantity: i.quantity, unitPrice: p.price, note: p.kind === 'card' ? i.note : '' };
+      });
+      if (!items.some((i) => i.kind === 'bouquet')) throw new ApiError('no_bouquet');
       const o: SampleOrder = {
         id: crypto.randomUUID(), number: list.length + 1, token: randomToken(), status: 'new',
-        createdAt: new Date().toISOString(), slotStart: start, bouquetId: b.id, bouquetName: b.name, bouquetPhoto: b.photo,
-        quantity: v.quantity, price: priceOrder(shop.settings, b.price, v.quantity), name: v.name, phone: v.phone,
+        createdAt: new Date().toISOString(), slotStart: start, items,
+        bouquetPhoto: (items.find((i) => i.kind === 'bouquet') ?? items[0]).photo,
+        price: priceOrder(shop.settings, items.map((i) => ({ price: i.unitPrice, quantity: i.quantity, kind: i.kind }))), name: v.name, phone: v.phone,
         contactChannel: v.contactChannel, contactHandle: v.contactHandle, address: v.address, comment: v.comment,
         canCancel: true, cancelDeadline: cancelDeadline(shop.settings, start).toISOString(), shopSlug: shop.slug, idempotencyKey: v.idempotencyKey,
       };

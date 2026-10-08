@@ -1,6 +1,6 @@
 // Order input, prices with quantity discounts, cancellation rules.
 import { z } from 'zod';
-import { normalizePhone, type ShopSettings } from './config.ts';
+import { normalizePhone, type ProductKind, type ShopSettings } from './config.ts';
 
 export const CONTACT_CHANNELS = ['telegram', 'vk'] as const;
 export type ContactChannel = (typeof CONTACT_CHANNELS)[number];
@@ -15,11 +15,20 @@ export function normalizeContact(channel: ContactChannel, raw: string): string |
   return /^[A-Za-z0-9_.]{2,50}$/.test(v) ? v : null;
 }
 
+export const MAX_CARD_TEXT = 300;
+
+export const orderItemInputSchema = z.object({
+  productId: z.string().min(2),
+  quantity: z.number().int().min(1, 'Минимум 1').max(99, 'Не больше 99'),
+  /** text written on a postcard */
+  note: z.string().trim().max(MAX_CARD_TEXT, `Текст открытки — до ${MAX_CARD_TEXT} символов`).default(''),
+});
+export type OrderItemInput = z.input<typeof orderItemInputSchema>;
+
 export const orderInputSchema = z
   .object({
     shopSlug: z.string().min(2),
-    bouquetId: z.string().min(2),
-    quantity: z.number().int().min(1, 'Минимум 1').max(99, 'Не больше 99'),
+    items: z.array(orderItemInputSchema).min(1, 'Корзина пуста — добавьте букет').max(20, 'Не больше 20 позиций'),
     slotStart: z.string().datetime({ offset: true, message: 'Выберите время доставки' }),
     name: z.string().trim().min(2, 'Укажите имя').max(60, 'Слишком длинное имя'),
     phone: z.string().trim().refine((v) => normalizePhone(v) !== null, 'Телефон: +7 и 10 цифр'),
@@ -38,6 +47,8 @@ export const orderInputSchema = z
         message: v.contactChannel === 'telegram' ? 'Ник Telegram: @username' : 'VK: короткое имя или ссылка на страницу',
       });
     }
+    const ids = v.items.map((i) => i.productId);
+    if (new Set(ids).size !== ids.length) ctx.addIssue({ code: 'custom', path: ['items'], message: 'Одна позиция указана дважды' });
   })
   .transform((v) => ({
     ...v,
@@ -47,9 +58,14 @@ export const orderInputSchema = z
 export type OrderInput = z.input<typeof orderInputSchema>;
 export type ValidOrder = z.output<typeof orderInputSchema>;
 
+export interface PriceLine { price: number; quantity: number; kind: ProductKind }
+
 export interface PriceBreakdown {
-  unitPrice: number;
-  quantity: number;
+  /** bouquets before discount */
+  bouquetsSubtotal: number;
+  /** number of bouquets — the quantity discount counts these */
+  bouquetCount: number;
+  cardsSubtotal: number;
   subtotal: number;
   discountPercent: number;
   discount: number;
@@ -57,21 +73,28 @@ export interface PriceBreakdown {
   total: number;
 }
 
-export function discountFor(s: Pick<ShopSettings, 'advance'>, qty: number): number {
+export function discountFor(s: Pick<ShopSettings, 'advance'>, bouquetCount: number): number {
   return s.advance.discounts
-    .filter((t) => qty >= t.minQty)
+    .filter((t) => bouquetCount >= t.minQty)
     .reduce((best, t) => Math.max(best, t.percent), 0);
 }
 
-/** Same arithmetic as public.price_order() in SQL. Rubles, rounded down to whole rubles. */
-export function priceOrder(s: Pick<ShopSettings, 'advance' | 'delivery'>, unitPrice: number, qty: number): PriceBreakdown {
-  const subtotal = unitPrice * qty;
-  const discountPercent = discountFor(s, qty);
-  const discount = Math.floor((subtotal * discountPercent) / 100);
+/**
+ * Same arithmetic as public.create_order() in SQL. Whole rubles.
+ * The quantity discount applies to bouquets only; postcards are always full price.
+ */
+export function priceOrder(s: Pick<ShopSettings, 'advance' | 'delivery'>, lines: PriceLine[]): PriceBreakdown {
+  const bouquets = lines.filter((l) => l.kind === 'bouquet');
+  const bouquetsSubtotal = bouquets.reduce((a, l) => a + l.price * l.quantity, 0);
+  const bouquetCount = bouquets.reduce((a, l) => a + l.quantity, 0);
+  const cardsSubtotal = lines.filter((l) => l.kind === 'card').reduce((a, l) => a + l.price * l.quantity, 0);
+  const discountPercent = discountFor(s, bouquetCount);
+  const discount = Math.floor((bouquetsSubtotal * discountPercent) / 100);
+  const subtotal = bouquetsSubtotal + cardsSubtotal;
   const afterDiscount = subtotal - discount;
   const free = s.delivery.freeFrom !== null && afterDiscount >= s.delivery.freeFrom;
-  const deliveryFee = free ? 0 : s.delivery.fee;
-  return { unitPrice, quantity: qty, subtotal, discountPercent, discount, deliveryFee, total: afterDiscount + deliveryFee };
+  const deliveryFee = lines.length === 0 || free ? 0 : s.delivery.fee;
+  return { bouquetsSubtotal, bouquetCount, cardsSubtotal, subtotal, discountPercent, discount, deliveryFee, total: afterDiscount + deliveryFee };
 }
 
 export function formatRub(n: number): string {
@@ -96,10 +119,9 @@ export interface OrderView {
   status: OrderStatus;
   createdAt: string;
   slotStart: string;
-  bouquetId: string;
-  bouquetName: string;
+  items: OrderItemView[];
+  /** photo of the first bouquet, for lists */
   bouquetPhoto: string;
-  quantity: number;
   price: PriceBreakdown;
   name: string;
   phone: string;
@@ -110,6 +132,21 @@ export interface OrderView {
   canCancel: boolean;
   cancelDeadline: string;
   shopSlug?: string;
+}
+
+export interface OrderItemView {
+  productId: string;
+  kind: ProductKind;
+  name: string;
+  photo: string;
+  quantity: number;
+  unitPrice: number;
+  note: string;
+}
+
+/** «Пионовое облако × 3, Открытка «Люблю»» */
+export function orderSummary(o: Pick<OrderView, 'items'>): string {
+  return o.items.map((i) => i.name + (i.quantity > 1 ? ` × ${i.quantity}` : '')).join(', ');
 }
 
 export function cancelDeadline(s: Pick<ShopSettings, 'cancel'>, slotStartIso: string): Date {

@@ -15,7 +15,7 @@ import { Reveal } from '../components/Reveal';
 export default function Advance() {
   const { shop, slug } = useShop();
   const s = shop.settings;
-  const sample = shop.bouquets.find((b) => b.inStock) ?? shop.bouquets[0];
+  const sample = shop.bouquets.find((b) => b.inStock && b.kind === 'bouquet') ?? shop.bouquets.find((b) => b.kind === 'bouquet');
   return (
     <VStack gap={8}>
       <SampleBanner />
@@ -37,7 +37,7 @@ export default function Advance() {
             <Card padding={0}>
               <List>
                 {s.advance.discounts.map((d) => {
-                  const ex = sample ? priceOrder(s, sample.price, d.minQty) : null;
+                  const ex = sample ? priceOrder(s, [{ price: sample.price, quantity: d.minQty, kind: 'bouquet' }]) : null;
                   return (
                     <Item
                       key={d.minQty}

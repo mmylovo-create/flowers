@@ -22,7 +22,7 @@ test('home page: photo, name, bouquets with prices, reviews, contacts and order 
   await expect(contactHeading).toBeVisible();
   await expect(page.getByText(/Москва, ул\. Покровка, \d+/).first()).toBeVisible(); // the owner test may have edited the number
   await expect(page.getByText(/Пн–Пт: 09:00–21:00/).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Заказать букет' }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Выбрать букет' }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: /Позвонить/ }).first()).toHaveAttribute('href', 'tel:+79991234567');
 });
 
@@ -70,4 +70,13 @@ test('«Скидки» tab: order in advance, quantity discounts, contact us', a
   await expect(page.getByText('От 3 букетов')).toBeVisible();
   await expect(page.getByText('−10%')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Связаться с нами' })).toBeVisible();
+});
+
+test('catalog has a separate «Открытки» section; postcard tiles open their own page', async ({ page }) => {
+  await page.goto(`${SHOP}/bouquets`);
+  await expect(page.getByRole('heading', { name: 'Открытки' })).toBeVisible();
+  await page.getByTestId('bouquet-card-birthday').click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Открытка «С днём рождения»' })).toBeVisible();
+  await expect(page.getByTestId('product-price')).toHaveText(/250 ₽/);
+  await expect(page.getByTestId('card-offer')).toHaveCount(0); // no postcard offer on a postcard
 });

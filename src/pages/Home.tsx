@@ -12,7 +12,7 @@ import { Reveal } from '../components/Reveal';
 export default function Home() {
   const { shop, slug } = useShop();
   const s = shop.settings;
-  const featured = [...shop.bouquets].sort((a, b) => Number(b.inStock) - Number(a.inStock)).slice(0, 4);
+  const featured = shop.bouquets.filter((b) => b.kind === 'bouquet').sort((a, b) => Number(b.inStock) - Number(a.inStock)).slice(0, 4);
   const best = s.advance.discounts.reduce((m, d) => Math.max(m, d.percent), 0);
   return (
     <VStack gap={8}>

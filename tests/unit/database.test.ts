@@ -48,7 +48,7 @@ function slot(n = 0, dayOffset = 1): string {
 }
 function order(over: Record<string, unknown> = {}) {
   return {
-    shopSlug: 'demo', bouquetId: 'morning-garden', quantity: 1, slotStart: slot(), name: 'Анна',
+    shopSlug: 'demo', items: [{ productId: 'morning-garden', quantity: 1 }], slotStart: slot(), name: 'Анна',
     phone: '+7 999 111-22-33', contactChannel: 'telegram', contactHandle: '@anna_test', address: 'Москва, ул. Пушкина, 1',
     comment: '', deliveryConfirmed: true, idempotencyKey: crypto.randomUUID(), ...over,
   };
@@ -74,11 +74,38 @@ beforeAll(async () => {
 
 describe('creating orders', () => {
   it('creates an order with server-side price and notification', async () => {
-    const { status, body } = await api({ action: 'create_order', order: order({ quantity: 3 }) });
+    const { status, body } = await api({ action: 'create_order', order: order({ items: [{ productId: 'morning-garden', quantity: 3 }] }) });
     expect(status).toBe(200);
-    expect(body.order).toMatchObject({ status: 'new', quantity: 3, duplicate: false, phone: '+79991112233' });
-    expect(body.order!.price).toMatchObject({ unitPrice: 4200, subtotal: 12600, discountPercent: 5, deliveryFee: 0, total: 11970 });
+    expect(body.order).toMatchObject({ status: 'new', duplicate: false, phone: '+79991112233' });
+    expect(body.order!.items).toEqual([{ productId: 'morning-garden', kind: 'bouquet', name: 'Утренний сад', photo: 'photos/morning-garden.jpg', quantity: 3, unitPrice: 4200, note: '' }]);
+    expect(body.order!.price).toMatchObject({ bouquetsSubtotal: 12600, bouquetCount: 3, subtotal: 12600, discountPercent: 5, deliveryFee: 0, total: 11970 });
     expect(body.order!.token).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('an order with several bouquets and a postcard: one delivery, discount on bouquets only, card text kept', async () => {
+    const { status, body } = await api({ action: 'create_order', order: order({
+      slotStart: slot(5),
+      items: [
+        { productId: 'white-tulips', quantity: 2 },
+        { productId: 'morning-garden', quantity: 1 },
+        { productId: 'card-birthday', quantity: 1, note: 'С днём рождения, мама!' },
+      ],
+    }) });
+    expect(status).toBe(200);
+    const o = body.order!;
+    expect(o.items.map((i) => [i.productId, i.kind, i.quantity, i.note])).toEqual([
+      ['white-tulips', 'bouquet', 2, ''], ['morning-garden', 'bouquet', 1, ''], ['card-birthday', 'card', 1, 'С днём рождения, мама!'],
+    ]);
+    // 2×3200 + 4200 = 10600 bouquets, −5% = 530; card 250 at full price
+    expect(o.price).toMatchObject({ bouquetCount: 3, bouquetsSubtotal: 10600, cardsSubtotal: 250, discount: 530, deliveryFee: 0, total: 10320 });
+    expect(o.bouquetPhoto).toBe('photos/white-tulips.jpg');
+  });
+
+  it('a postcard alone is not delivered; the same product twice is rejected', async () => {
+    const r = await api({ action: 'create_order', order: order({ slotStart: slot(6), items: [{ productId: 'card-love', quantity: 1 }] }) });
+    expect(r.body.error).toBe('no_bouquet');
+    const d = await api({ action: 'create_order', order: order({ slotStart: slot(6), items: [{ productId: 'pion-cloud', quantity: 1 }, { productId: 'pion-cloud', quantity: 1 }] }) });
+    expect(d.status).toBe(422);
   });
 
   it('a repeated confirmation (same key) returns the same order, no copy', async () => {
@@ -103,9 +130,9 @@ describe('creating orders', () => {
   it('the unique index rejects a second active order in the same seat even without the function', async () => {
     const o = (await db.pg.query<Record<string, unknown>>(`select * from orders where status = 'new' limit 1`)).rows[0];
     await expect(db.pg.query(
-      `insert into orders (shop_id, number, token, idempotency_key, slot_start, slot_seq, bouquet_id, bouquet_name, bouquet_photo,
-        quantity, unit_price, subtotal, total, name, phone, contact_channel, contact_handle, address)
-       values ($1, 9999, 'x', gen_random_uuid(), $2, 1, 'a', 'a', 'a', 1, 1, 1, 1, 'aa', '+79990000000', 'vk', 'aa', 'aaaaa')`,
+      `insert into orders (shop_id, number, token, idempotency_key, slot_start, slot_seq,
+        bouquet_count, bouquets_subtotal, subtotal, total, name, phone, contact_channel, contact_handle, address)
+       values ($1, 9999, 'x', gen_random_uuid(), $2, 1, 1, 1, 1, 1, 'aa', '+79990000000', 'vk', 'aa', 'aaaaa')`,
       [o.shop_id, o.slot_start])).rejects.toThrow(/orders_one_per_slot_seat/);
   });
 
@@ -122,7 +149,7 @@ describe('creating orders', () => {
     const late = new Date(slot(0)); late.setUTCMinutes(30);
     expect((await api({ action: 'create_order', order: order({ slotStart: late.toISOString() }) })).body.error).toBe('bad_slot');
     expect((await api({ action: 'create_order', order: order({ deliveryConfirmed: false }) })).status).toBe(422);
-    expect((await api({ action: 'create_order', order: order({ bouquetId: 'field-mix' }) })).body.error).toBe('out_of_stock');
+    expect((await api({ action: 'create_order', order: order({ items: [{ productId: 'field-mix', quantity: 1 }] }) })).body.error).toBe('out_of_stock');
   });
 
   it('browsers cannot call create_order directly', async () => {
@@ -132,7 +159,7 @@ describe('creating orders', () => {
   it('stock is reserved and returned on cancel', async () => {
     const before = ((await db.rpc('shop_public', { p_slug: 'demo' }, { role: 'anon' })) as { bouquets: { id: string; stock: number }[] })
       .bouquets.find((b) => b.id === 'pion-cloud')!.stock;
-    const { body } = await api({ action: 'create_order', order: order({ bouquetId: 'pion-cloud', quantity: 2, slotStart: slot(3) }) });
+    const { body } = await api({ action: 'create_order', order: order({ items: [{ productId: 'pion-cloud', quantity: 2 }, { productId: 'card-love', quantity: 1, note: 'Люблю' }], slotStart: slot(3) }) });
     const mid = ((await db.rpc('shop_public', { p_slug: 'demo' }, { role: 'anon' })) as { bouquets: { id: string; stock: number }[] })
       .bouquets.find((b) => b.id === 'pion-cloud')!.stock;
     expect(mid).toBe(before - 2);

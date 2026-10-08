@@ -9,6 +9,7 @@ import { TENANTS, DEFAULT_SLUG } from './generated/tenants';
 import { ShopProvider, useShop } from './lib/shop';
 import { shopTheme } from './lib/theme';
 import { BottomNav } from './components/BottomNav';
+import { CartButton } from './components/CartButton';
 import { AppLink } from './components/common';
 import Home from './pages/Home';
 
@@ -17,6 +18,7 @@ const Order = lazy(() => import('./pages/Order'));
 const MyOrders = lazy(() => import('./pages/MyOrders'));
 const OrderDetails = lazy(() => import('./pages/OrderDetails'));
 const Advance = lazy(() => import('./pages/Advance'));
+const Product = lazy(() => import('./pages/Product'));
 const Admin = lazy(() => import('./pages/admin/Admin'));
 
 function setHead(selector: string, attr: string, value: string, create: () => HTMLElement) {
@@ -29,14 +31,15 @@ function setHead(selector: string, attr: string, value: string, create: () => HT
 function ShopHead() {
   const { shop, slug, media } = useShop();
   const s = shop.settings;
+  const base = import.meta.env.BASE_URL;
   useEffect(() => {
     document.title = s.tagline ? `${s.name} — ${s.tagline}` : s.name;
     setHead('meta[name="theme-color"]', 'content', s.theme.background, () => Object.assign(document.createElement('meta'), { name: 'theme-color' }));
-    setHead('link[rel="manifest"]', 'href', `/t/${slug}/manifest.webmanifest`, () => Object.assign(document.createElement('link'), { rel: 'manifest' }));
-    setHead('link[rel="apple-touch-icon"]', 'href', `/t/${slug}/apple-touch-icon.png`, () => Object.assign(document.createElement('link'), { rel: 'apple-touch-icon' }));
-    setHead('link[rel="icon"]', 'href', `/t/${slug}/favicon.png`, () => Object.assign(document.createElement('link'), { rel: 'icon' }));
+    setHead('link[rel="manifest"]', 'href', `${base}t/${slug}/manifest.webmanifest`, () => Object.assign(document.createElement('link'), { rel: 'manifest' }));
+    setHead('link[rel="apple-touch-icon"]', 'href', `${base}t/${slug}/apple-touch-icon.png`, () => Object.assign(document.createElement('link'), { rel: 'apple-touch-icon' }));
+    setHead('link[rel="icon"]', 'href', `${base}t/${slug}/favicon.png`, () => Object.assign(document.createElement('link'), { rel: 'icon' }));
     setHead('meta[name="apple-mobile-web-app-title"]', 'content', s.name, () => Object.assign(document.createElement('meta'), { name: 'apple-mobile-web-app-title' }));
-  }, [s, slug, media]);
+  }, [s, slug, media, base]);
   return null;
 }
 
@@ -76,6 +79,7 @@ function ThemedShop() {
           <Outlet />
         </Suspense>
       </main>
+      <CartButton />
       <BottomNav slug={slug} />
     </Theme>
   );
@@ -89,7 +93,9 @@ export default function App() {
         <Route path="/s/:slug" element={<ShopLayout />}>
           <Route index element={<Home />} />
           <Route path="bouquets" element={<Bouquets />} />
+          <Route path="b/:id" element={<Product />} />
           <Route path="order" element={<Order />} />
+          <Route path="cart" element={<Order />} />
           <Route path="orders" element={<MyOrders />} />
           <Route path="orders/:token" element={<OrderDetails />} />
           <Route path="advance" element={<Advance />} />

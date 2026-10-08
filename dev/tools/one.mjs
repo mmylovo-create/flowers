@@ -1,0 +1,11 @@
+import { chromium, devices } from 'playwright-core';
+const [, , url, out, kind = 'mobile', action = ''] = process.argv;
+const b = await chromium.launch({ executablePath: '/tmp/chromium', args: ['--no-sandbox'] });
+const ctx = await b.newContext(kind === 'mobile' ? { ...devices['iPhone 13'] } : { viewport: { width: 1280, height: 860 } });
+const p = await ctx.newPage();
+await p.goto(url, { waitUntil: 'networkidle' });
+await p.waitForTimeout(800);
+if (action === 'scroll-offer') await p.evaluate(() => window.scrollTo(0, document.querySelector('[data-testid=card-offer]').getBoundingClientRect().top + scrollY - 120));
+await p.waitForTimeout(400);
+await p.screenshot({ path: out });
+await b.close();

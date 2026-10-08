@@ -5,7 +5,7 @@
 import { addDays } from 'date-fns';
 import {
   daySlots, deliveryDays, formatPhone, formatRub, formatSlot, hoursSummary, isOpenNow, localDay,
-  STATUS_LABELS, type OrderView, type PublicShop,
+  orderSummary, STATUS_LABELS, type OrderView, type PublicShop,
 } from './domain/index.ts';
 import { call, type ServerDeps } from './server.ts';
 
@@ -36,7 +36,8 @@ type Facts = NonNullable<Awaited<ReturnType<typeof buildFacts>>>;
 
 export function factLines(f: Facts): Record<string, string> {
   const s = f.shop.settings;
-  const inStock = f.shop.bouquets.filter((b) => b.inStock);
+  const inStock = f.shop.bouquets.filter((b) => b.inStock && b.kind !== 'card');
+  const cards = f.shop.bouquets.filter((b) => b.inStock && b.kind === 'card');
   const out: Record<string, string> = {
     hours: `Время работы: ${hoursSummary(s)}. Сейчас ${f.open ? 'открыто' : 'закрыто'}.`,
     address: `Адрес: ${s.address}.`,
@@ -45,13 +46,16 @@ export function factLines(f: Facts): Record<string, string> {
     stock: inStock.length
       ? `В наличии: ${inStock.map((b) => `${b.name} — ${formatRub(b.price)}`).join('; ')}.`
       : 'Сейчас нет букетов в наличии.',
+    cards: cards.length
+      ? `Открытки к букету: ${cards.map((c) => `${c.name} — ${formatRub(c.price)}`).join('; ')}. Текст напишем от руки — укажите его при заказе.`
+      : 'Открыток сейчас нет.',
     outOfStock: f.shop.bouquets.filter((b) => !b.inStock).map((b) => b.name).join(', '),
     discounts: s.advance.discounts.length
       ? `Скидки при заказе нескольких букетов: ${s.advance.discounts.map((d) => `от ${d.minQty} шт. — ${d.percent}%`).join(', ')}. Заказать можно заранее, до ${s.delivery.maxAdvanceDays} дней вперёд.`
       : `Заказать можно заранее, до ${s.delivery.maxAdvanceDays} дней вперёд.`,
     cancel: s.cancel.rules || `Отменить заказ можно не позже чем за ${Math.round(s.cancel.untilMinutesBefore / 60)} ч до доставки.`,
     orders: f.orders.length
-      ? f.orders.map((o) => `Заказ №${o.number} (${o.bouquetName} × ${o.quantity}) на ${formatSlot(o.slotStart, s.timezone, s.delivery.slotMinutes)} — ${STATUS_LABELS[o.status]}`).join('; ') + '.'
+      ? f.orders.map((o) => `Заказ №${o.number} (${orderSummary(o)}) на ${formatSlot(o.slotStart, s.timezone, s.delivery.slotMinutes)} — ${STATUS_LABELS[o.status]}`).join('; ') + '.'
       : 'На этом устройстве нет заказов в этом магазине.',
   };
   return out;
@@ -65,6 +69,7 @@ const INTENTS: { key: string; re: RegExp }[] = [
   { key: 'hours', re: /работаете|график|часы|открыт|закрыт|время работы|выходн/ },
   { key: 'address', re: /адрес|где (вы|находит)|самовывоз|как добрат/ },
   { key: 'contacts', re: /телефон|позвон|связат|телеграм|telegram|(^|[^а-яa-z])(вк|vk)([^а-яa-z]|$)|написать/ },
+  { key: 'cards', re: /открытк|подпис|записк/ },
   { key: 'stock', re: /налич|есть ли|какие букет|что есть|ассортимент|каталог/ },
 ];
 
