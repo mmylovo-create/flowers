@@ -1,0 +1,133 @@
+{
+  "slug": "__SLUG__",
+  "settings": {
+    "name": "__NAME__",
+    "tagline": "Цветы с доставкой по городу",
+    "description": "Расскажите о магазине в двух-трёх предложениях.",
+    "city": "Москва",
+    "address": "Город, улица, дом",
+    "mapUrl": "",
+    "phone": "+7 900 000-00-00",
+    "telegram": "",
+    "vk": "",
+    "timezone": "Europe/Moscow",
+    "currency": "RUB",
+    "hours": {
+      "mon": {
+        "open": "09:00",
+        "close": "21:00"
+      },
+      "tue": {
+        "open": "09:00",
+        "close": "21:00"
+      },
+      "wed": {
+        "open": "09:00",
+        "close": "21:00"
+      },
+      "thu": {
+        "open": "09:00",
+        "close": "21:00"
+      },
+      "fri": {
+        "open": "09:00",
+        "close": "21:00"
+      },
+      "sat": {
+        "open": "10:00",
+        "close": "20:00"
+      },
+      "sun": {
+        "open": "10:00",
+        "close": "20:00"
+      }
+    },
+    "daysOff": [],
+    "logo": "logo.svg",
+    "heroPhoto": "photos/hero.jpg",
+    "delivery": {
+      "minLeadMinutes": 60,
+      "slotMinutes": 60,
+      "slotCapacity": 1,
+      "maxAdvanceDays": 30,
+      "fee": 400,
+      "freeFrom": 6000,
+      "zone": "Доставка по Москве в пределах МКАД"
+    },
+    "cancel": {
+      "untilMinutesBefore": 120,
+      "rules": "Отменить заказ можно бесплатно не позже чем за 2 часа до начала доставки."
+    },
+    "advance": {
+      "text": "Закажите цветы заранее — к дню рождения, 8 Марта или выпускному. Мы закрепим за вами время доставки и соберём букет в день доставки, чтобы цветы были свежими.",
+      "discounts": [
+        {
+          "minQty": 3,
+          "percent": 5
+        },
+        {
+          "minQty": 5,
+          "percent": 10
+        },
+        {
+          "minQty": 10,
+          "percent": 15
+        }
+      ]
+    },
+    "yandex": {
+      "orgId": "",
+      "rating": null,
+      "reviewsCount": null
+    },
+    "reviews": [
+      {
+        "author": "Покупатель",
+        "rating": 5,
+        "text": "Замените на настоящий отзыв с Яндекс Карт.",
+        "date": "2026-01-01"
+      }
+    ],
+    "theme": {
+      "accent": "#A8506A",
+      "background": "#FBF5F2",
+      "surface": "#FFFFFF"
+    }
+  },
+  "bouquets": [
+    {
+      "id": "pion-cloud",
+      "name": "Пионовое облако",
+      "description": "15 нежно-розовых пионов с эвкалиптом в крафтовой упаковке.",
+      "price": 5900,
+      "photo": "photos/pion-cloud.jpg",
+      "inStock": true,
+      "stock": null,
+      "sort": 1
+    },
+    {
+      "id": "morning-garden",
+      "name": "Утренний сад",
+      "description": "Кустовые розы, ранункулюсы и маттиола в пастельных тонах.",
+      "price": 4200,
+      "photo": "photos/morning-garden.jpg",
+      "inStock": true,
+      "stock": null,
+      "sort": 2
+    },
+    {
+      "id": "lavender-mood",
+      "name": "Лавандовое настроение",
+      "description": "Лизиантус, сирень и лаванда. Лёгкий аромат и воздушная форма.",
+      "price": 3700,
+      "photo": "photos/lavender-mood.jpg",
+      "inStock": true,
+      "stock": null,
+      "sort": 3
+    }
+  ],
+  "owner": {
+    "email": "",
+    "telegramIds": []
+  }
+}

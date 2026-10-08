@@ -1,0 +1,9 @@
+project_id = "flowers"
+
+[functions.api]
+verify_jwt = false
+import_map = "./functions/api/deno.json"
+
+[functions.telegram]
+verify_jwt = false
+import_map = "./functions/telegram/deno.json"

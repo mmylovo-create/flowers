@@ -1,0 +1,15 @@
+node_modules
+dist
+dev/.data
+public/t
+src/generated
+test-results
+playwright-report
+verify-output
+.publish
+.env.publish
+.env*.local
+.vercel
+supabase/.temp
+_ref
+*.log

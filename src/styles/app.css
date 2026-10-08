@@ -1,0 +1,261 @@
+/* App-level styles that Astryx components do not cover: the page frame around the fixed
+   glass navigation, the hero photo with its glass button, scroll reveal and the slot grid.
+   All values come from Astryx tokens. */
+
+:root {
+  --nav-height: 68px;
+  --nav-gap: var(--spacing-3);
+  --page-max: 1080px;
+  color-scheme: light;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--color-background-body);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-body, Manrope, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Page frame: content never hides behind the bottom navigation */
+.page {
+  max-width: var(--page-max);
+  margin-inline: auto;
+  padding-inline: var(--spacing-4);
+  padding-top: max(var(--spacing-4), env(safe-area-inset-top));
+  padding-bottom: calc(var(--nav-height) + var(--nav-gap) * 2 + env(safe-area-inset-bottom) + var(--spacing-6));
+  box-sizing: border-box;
+}
+@media (min-width: 768px) {
+  .page { padding-inline: var(--spacing-8); }
+}
+
+/* ───────── glass (liquid-gl renders the real effect; this is the look until it is ready
+   and the fallback when WebGL is unavailable) ───────── */
+.glass {
+  background: color-mix(in srgb, var(--color-background-surface) 58%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter: blur(18px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--color-background-surface) 70%, transparent);
+  box-shadow: var(--shadow-med);
+}
+.glass.glass--gl {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* ───────── bottom navigation ───────── */
+.bottom-nav {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: calc(var(--nav-gap) + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - var(--spacing-6)));
+  height: var(--nav-height);
+  border-radius: var(--radius-full);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: center;
+  padding-inline: var(--spacing-1-5);
+  box-sizing: border-box;
+}
+.bottom-nav__item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-0-5);
+  height: calc(var(--nav-height) - var(--spacing-3));
+  border-radius: var(--radius-full);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  -webkit-tap-highlight-color: transparent;
+}
+.bottom-nav__item[aria-current='page'] {
+  color: var(--color-text-accent);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+.bottom-nav__item:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: 2px;
+}
+
+/* ───────── hero ───────── */
+.hero {
+  position: relative;
+  border-radius: var(--radius-page);
+  overflow: hidden;
+  height: clamp(360px, 62vh, 560px);
+  background: var(--color-background-muted);
+}
+.hero__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hero__logo {
+  position: absolute;
+  top: var(--spacing-4);
+  left: var(--spacing-4);
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
+  background: var(--color-background-surface);
+  object-fit: cover;
+}
+.hero__cta {
+  /* no z-index here on purpose: the label below must stack above the glass canvas,
+     which liquid-gl draws at z-index 2 next to <body> */
+  position: absolute;
+  left: var(--spacing-4);
+  right: var(--spacing-4);
+  bottom: var(--spacing-4);
+  height: 60px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  color: var(--color-text-primary);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.hero__cta-label {
+  position: relative;
+  z-index: 3;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+.hero__cta:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: 3px;
+}
+@media (min-width: 768px) {
+  .hero__cta { left: 50%; right: auto; width: min(420px, 60%); transform: translateX(-50%); }
+}
+
+/* ───────── appear on scroll ───────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity var(--duration-medium, 410ms) var(--ease-standard, ease), transform var(--duration-medium, 410ms) var(--ease-standard, ease);
+}
+.reveal.is-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal.is-visible { opacity: 1; transform: none; transition: none; }
+}
+
+/* ───────── images ───────── */
+.cover { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb { width: 64px; height: 64px; border-radius: var(--radius-element); object-fit: cover; flex: none; }
+.out-of-stock img { filter: grayscale(0.6); opacity: 0.7; }
+
+/* ───────── delivery day + time pickers ───────── */
+.chip-row {
+  display: flex;
+  gap: var(--spacing-2);
+  overflow-x: auto;
+  padding-bottom: var(--spacing-1);
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+.day-chip, .slot {
+  font: inherit;
+  border: 1px solid var(--color-border-emphasized);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-container);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.day-chip {
+  flex: none;
+  scroll-snap-align: start;
+  min-width: 72px;
+  padding: var(--spacing-2) var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-0-5);
+}
+.day-chip__wd { font-size: 13px; color: var(--color-text-secondary); }
+.day-chip__d { font-size: 16px; font-weight: 700; }
+.day-chip[aria-pressed='true'], .slot[aria-pressed='true'] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.day-chip[aria-pressed='true'] .day-chip__wd { color: inherit; }
+.day-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: var(--spacing-2);
+}
+.slot {
+  min-height: 56px;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.slot__note { font-size: 12px; font-weight: 600; }
+.slot[data-state='busy'] {
+  cursor: not-allowed;
+  color: var(--color-text-secondary);
+  border-style: dashed;
+  background: repeating-linear-gradient(-45deg, var(--color-background-muted) 0 6px, transparent 6px 12px), var(--color-background-surface);
+}
+.slot[data-state='busy'] .slot__time { text-decoration: line-through; }
+.slot[data-state='busy'] .slot__note { color: var(--color-error); }
+.slot[data-state='too-soon'] { cursor: not-allowed; opacity: 0.5; }
+.day-chip:focus-visible, .slot:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: 2px;
+}
+
+.legend { display: flex; flex-wrap: wrap; gap: var(--spacing-3); font-size: 13px; color: var(--color-text-secondary); }
+.legend__swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; border: 1px solid var(--color-border-emphasized); }
+.legend__swatch--busy { border-style: dashed; background: repeating-linear-gradient(-45deg, var(--color-background-muted) 0 3px, transparent 3px 6px); }
+.legend__swatch--sel { background: var(--color-accent); border-color: var(--color-accent); }
+
+/* quantity stepper */
+.qty { display: inline-flex; align-items: center; gap: var(--spacing-3); }
+.qty__value { min-width: 2ch; text-align: center; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.sticky-total {
+  position: sticky;
+  bottom: calc(var(--nav-height) + var(--nav-gap) * 2 + env(safe-area-inset-bottom));
+  z-index: 5;
+}
+
+.stars { color: var(--color-icon-yellow); letter-spacing: 1px; }
+.yandex-frame { width: 100%; height: 560px; border: 0; border-radius: var(--radius-container); background: var(--color-background-surface); }
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus { left: var(--spacing-4); top: var(--spacing-4); z-index: 100; background: var(--color-background-surface); padding: var(--spacing-2) var(--spacing-3); border-radius: var(--radius-element); }

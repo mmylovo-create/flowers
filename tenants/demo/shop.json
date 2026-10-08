@@ -1,0 +1,65 @@
+{
+  "slug": "demo",
+  "settings": {
+    "name": "Флёр",
+    "tagline": "Цветочная студия с доставкой по городу",
+    "description": "Собираем букеты из сезонных цветов каждое утро. Привезём за 1 час по городу, бережно упакуем и приложим открытку.",
+    "city": "Москва",
+    "address": "Москва, ул. Покровка, 17",
+    "mapUrl": "https://yandex.ru/maps/?text=%D0%9C%D0%BE%D1%81%D0%BA%D0%B2%D0%B0%2C%20%D1%83%D0%BB.%20%D0%9F%D0%BE%D0%BA%D1%80%D0%BE%D0%B2%D0%BA%D0%B0%2C%2017",
+    "phone": "+7 999 123-45-67",
+    "telegram": "@fleur_studio",
+    "vk": "fleur_studio",
+    "timezone": "Europe/Moscow",
+    "currency": "RUB",
+    "hours": {
+      "mon": { "open": "09:00", "close": "21:00" },
+      "tue": { "open": "09:00", "close": "21:00" },
+      "wed": { "open": "09:00", "close": "21:00" },
+      "thu": { "open": "09:00", "close": "21:00" },
+      "fri": { "open": "09:00", "close": "21:00" },
+      "sat": { "open": "10:00", "close": "20:00" },
+      "sun": { "open": "10:00", "close": "20:00" }
+    },
+    "daysOff": ["2026-12-31", "2027-01-01"],
+    "logo": "logo.svg",
+    "heroPhoto": "photos/hero.jpg",
+    "delivery": {
+      "minLeadMinutes": 60,
+      "slotMinutes": 60,
+      "slotCapacity": 1,
+      "maxAdvanceDays": 30,
+      "fee": 400,
+      "freeFrom": 6000,
+      "zone": "Доставка по Москве в пределах МКАД"
+    },
+    "cancel": {
+      "untilMinutesBefore": 120,
+      "rules": "Отменить заказ можно бесплатно не позже чем за 2 часа до начала доставки."
+    },
+    "advance": {
+      "text": "Закажите цветы заранее — к дню рождения, 8 Марта или выпускному. Мы закрепим за вами время доставки и соберём букет в день доставки, чтобы цветы были свежими.",
+      "discounts": [
+        { "minQty": 3, "percent": 5 },
+        { "minQty": 5, "percent": 10 },
+        { "minQty": 10, "percent": 15 }
+      ]
+    },
+    "yandex": { "orgId": "", "rating": 4.9, "reviewsCount": 128 },
+    "reviews": [
+      { "author": "Анна", "rating": 5, "text": "Заказала пионы маме на юбилей — привезли ровно ко времени, букет огромный и очень свежий.", "date": "2026-09-21" },
+      { "author": "Дмитрий", "rating": 5, "text": "Быстро ответили в Telegram, помогли выбрать. Курьер вежливый, упаковка аккуратная.", "date": "2026-09-14" },
+      { "author": "Мария", "rating": 5, "text": "Третий раз беру здесь букеты. Стоят неделю, цены честные.", "date": "2026-08-30" }
+    ],
+    "theme": { "accent": "#A8506A", "background": "#FBF5F2", "surface": "#FFFFFF" }
+  },
+  "bouquets": [
+    { "id": "pion-cloud", "name": "Пионовое облако", "description": "15 нежно-розовых пионов с эвкалиптом в крафтовой упаковке.", "price": 5900, "photo": "photos/pion-cloud.jpg", "inStock": true, "stock": 8, "sort": 1 },
+    { "id": "morning-garden", "name": "Утренний сад", "description": "Кустовые розы, ранункулюсы и маттиола в пастельных тонах.", "price": 4200, "photo": "photos/morning-garden.jpg", "inStock": true, "stock": null, "sort": 2 },
+    { "id": "lavender-mood", "name": "Лавандовое настроение", "description": "Лизиантус, сирень и лаванда. Лёгкий аромат и воздушная форма.", "price": 3700, "photo": "photos/lavender-mood.jpg", "inStock": true, "stock": null, "sort": 3 },
+    { "id": "white-tulips", "name": "Белые тюльпаны", "description": "25 белых тюльпанов, перевязанных атласной лентой.", "price": 3200, "photo": "photos/white-tulips.jpg", "inStock": true, "stock": 12, "sort": 4 },
+    { "id": "peach-box", "name": "Персиковая коробка", "description": "Розы Кахала и гвоздики в шляпной коробке.", "price": 4900, "photo": "photos/peach-box.jpg", "inStock": true, "stock": null, "sort": 5 },
+    { "id": "field-mix", "name": "Полевой микс", "description": "Ромашки, васильки и колоски — как с летнего луга.", "price": 2600, "photo": "photos/field-mix.jpg", "inStock": false, "stock": null, "sort": 6 }
+  ],
+  "owner": { "email": "owner@demo.local", "telegramIds": [] }
+}

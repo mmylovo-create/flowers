@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "ES2022",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": false,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@domain": [
+        "./supabase/functions/_shared/domain/index.ts"
+      ],
+      "@server/*": [
+        "./supabase/functions/_shared/*"
+      ]
+    }
+  },
+  "include": [
+    "vite.config.ts",
+    "scripts",
+    "dev",
+    "tests",
+    "playwright.config.ts",
+    "vitest.config.ts"
+  ]
+}
