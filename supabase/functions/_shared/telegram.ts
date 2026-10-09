@@ -1,6 +1,7 @@
 // Telegram bot for shop owners: new orders arrive here, owners change order status,
-// stock and prices, and add bouquets with a photo.
-import { AppError, formatRub, KIND_LABELS, type Bouquet, type OrderView } from './domain/index.ts';
+// browse the catalog by section (photo, price, description), change stock and prices,
+// and add products of any section with a photo.
+import { AppError, formatRub, type Bouquet, type OrderView, type ProductKind } from './domain/index.ts';
 import { call, orderButtons, orderText, type ServerDeps } from './server.ts';
 
 interface TgUser { id: number; first_name?: string }
@@ -11,24 +12,37 @@ interface TgCallback { id: string; from: TgUser; message?: TgMessage; data?: str
 export interface TgUpdate { update_id: number; message?: TgMessage; callback_query?: TgCallback }
 
 interface ShopRef { id: string; slug: string; name: string }
-interface Session { shopId: string | null; state: { step?: string; photo?: string; bouquetId?: string } }
+interface Session { shopId: string | null; state: { step?: string; photo?: string; bouquetId?: string; kind?: ProductKind } }
+
+const BTN = { orders: '📦 Заказы', catalog: '🗂 Каталог', add: '➕ Добавить товар', site: '🌐 Сайт' };
+// buttons of the previous menu, still understood if an old keyboard is on screen
+const OLD_CATALOG = '💐 Букеты';
+const OLD_ADD = '➕ Добавить букет';
 
 const MENU = {
-  keyboard: [[{ text: '📦 Заказы' }, { text: '💐 Букеты' }], [{ text: '➕ Добавить букет' }, { text: '🌐 Сайт' }]],
+  keyboard: [[{ text: BTN.orders }, { text: BTN.catalog }], [{ text: BTN.add }, { text: BTN.site }]],
   resize_keyboard: true,
   is_persistent: true,
 };
 
+/** Catalog sections in the bot, in this order. */
+export const BOT_SECTIONS: { kind: ProductKind; title: string; emoji: string }[] = [
+  { kind: 'bouquet', title: 'Цветы', emoji: '💐' },
+  { kind: 'card', title: 'Открытки', emoji: '💌' },
+  { kind: 'balloon', title: 'Шары', emoji: '🎈' },
+  { kind: 'firework', title: 'Фейерверки', emoji: '🎆' },
+];
+const section = (k: ProductKind) => BOT_SECTIONS.find((x) => x.kind === k) ?? BOT_SECTIONS[0];
+const isKind = (k: string): k is ProductKind => BOT_SECTIONS.some((x) => x.kind === k);
+const ADD_FORMAT = 'Название; Цена; Описание; Количество\nКоличество можно не писать — тогда без учёта остатка.\nНапример: Розовые пионы; 4500; 11 пионов в крафтовой упаковке; 5';
+
 const HELP = [
-  'Команды:',
-  '/orders — ближайшие заказы и смена статуса',
-  '/bouquets — наличие и цены (кнопки под каждым букетом)',
-  '/add — добавить букет: пришлите фото с подписью «Название; Цена; Описание»',
-  '   (название со слова «Открытка» — добавится открытка, «Шар»/«Шары» — воздушные шары, «Фейерверк»/«Салют» — фейерверк)',
-  '/price <id> <цена> — изменить цену',
-  '/stock <id> on|off|<количество> — изменить наличие',
-  '/shop — выбрать магазин, если их несколько',
-  '/site — ссылки на сайт и кабинет',
+  'Кнопки внизу:',
+  `${BTN.orders} — ближайшие заказы и смена статуса`,
+  `${BTN.catalog} — разделы Цветы, Открытки, Шары, Фейерверки: у каждого товара фото, цена, описание и наличие; под товаром кнопки наличия, цены и количества`,
+  `${BTN.add} — выберите раздел и пришлите фото с подписью «Название; Цена; Описание; Количество»`,
+  `${BTN.site} — ссылки на сайт и кабинет`,
+  '/shop — выбрать магазин, если их несколько · /cancel — отменить ввод',
 ].join('\n');
 
 export function createTelegramHandler(deps: ServerDeps) {
@@ -85,10 +99,11 @@ export async function handleUpdate(deps: ServerDeps, u: TgUpdate): Promise<void>
       const { bytes, path } = await tg.download(best.file_id);
       const ext = (path.split('.').pop() || 'jpg').toLowerCase();
       const url = await deps.uploadMedia(shop.id, `bouquets/${Date.now()}.${ext}`, bytes, ext === 'png' ? 'image/png' : 'image/jpeg');
+      const kind = session.state.kind;
       const parsed = parseBouquetText(m.caption ?? '');
-      if (parsed) return void (await createBouquet(deps, chat, shop, { ...parsed, photo: url }, reply, setState));
-      await setState({ step: 'add_details', photo: url });
-      return void (await reply('Фото получено. Теперь пришлите одной строкой: Название; Цена; Описание\nНапример: Розовые пионы; 4500; 11 пионов в крафте'));
+      if (parsed) return void (await createBouquet(deps, chat, shop, { ...parsed, photo: url, kind }, reply, setState));
+      await setState({ step: 'add_details', photo: url, kind });
+      return void (await reply(`Фото получено. Теперь пришлите одной строкой:\n${ADD_FORMAT}`));
     }
 
     if (cmd === 'start' || cmd === 'help') return void (await reply(`Магазин: «${shop.name}»\n\n${HELP}`));
@@ -97,15 +112,17 @@ export async function handleUpdate(deps: ServerDeps, u: TgUpdate): Promise<void>
         inline_keyboard: shops.map((s) => [{ text: (s.id === shop.id ? '● ' : '') + s.name, callback_data: `s:${s.id}` }]),
       }));
     }
-    if (cmd === 'orders' || text === '📦 Заказы') return sendOrders(deps, chat, shop);
-    if (cmd === 'bouquets' || text === '💐 Букеты') return sendBouquets(deps, chat, shop);
-    if (cmd === 'site' || text === '🌐 Сайт') {
+    if (cmd === 'orders' || text === BTN.orders) return sendOrders(deps, chat, shop);
+    if (cmd === 'catalog' || cmd === 'bouquets' || text === BTN.catalog || text === OLD_CATALOG) return sendSections(deps, chat, shop);
+    if (cmd === 'site' || text === BTN.site) {
       const base = deps.siteUrl.replace(/\/$/, '');
       return void (await reply(`Сайт: ${base}/s/${shop.slug}/\nКабинет: ${base}/s/${shop.slug}/admin`));
     }
-    if (cmd === 'add' || text === '➕ Добавить букет') {
-      await setState({ step: 'add_photo' });
-      return void (await reply('Пришлите фото букета. В подписи можно сразу указать: Название; Цена; Описание'));
+    if (cmd === 'add' || text === BTN.add || text === OLD_ADD) {
+      await setState({});
+      return void (await reply('В какой раздел добавить товар?', {
+        inline_keyboard: chunk(BOT_SECTIONS.map((x) => ({ text: `${x.emoji} ${x.title}`, callback_data: `a:${x.kind}` })), 2),
+      }));
     }
     if (cmd === 'cancel') {
       await setState({});
@@ -123,16 +140,23 @@ export async function handleUpdate(deps: ServerDeps, u: TgUpdate): Promise<void>
       const n = /^\d+$/.test(v) ? Number(v) : null;
       const inStock = n !== null ? n > 0 : /^(on|да|есть|1)$/i.test(v);
       const b = await call<Bouquet>(deps.db, 'tg_set_stock', { p_chat: chat, p_shop: shop.id, p_bouquet: id, p_in_stock: inStock, p_stock: n });
-      return void (await reply(`«${b.name}»: ${b.inStock ? 'в наличии' + (b.stock !== null ? `, ${b.stock} шт.` : '') : 'нет в наличии'}.`));
+      return void (await reply(`«${b.name}»: ${stockText(b)}.`));
     }
 
     // replies inside a multi-step action
     if (session.state.step === 'add_details' && session.state.photo && text) {
       const parsed = parseBouquetText(text);
-      if (!parsed) return void (await reply('Не получилось разобрать. Формат: Название; Цена; Описание'));
-      return void (await createBouquet(deps, chat, shop, { ...parsed, photo: session.state.photo }, reply, setState));
+      if (!parsed) return void (await reply(`Не получилось разобрать. Формат:\n${ADD_FORMAT}`));
+      return void (await createBouquet(deps, chat, shop, { ...parsed, photo: session.state.photo, kind: session.state.kind }, reply, setState));
     }
-    if (session.state.step === 'add_photo') return void (await reply('Жду фото букета 📷'));
+    if (session.state.step === 'add_photo') return void (await reply(`Жду фото товара 📷 с подписью:\n${ADD_FORMAT}`));
+    if (session.state.step === 'stock' && session.state.bouquetId) {
+      const n = parseStock(text);
+      if (n === undefined) return void (await reply('Пришлите количество числом, например 5. 0 — нет в наличии, «-» — без учёта остатка.'));
+      const b = await call<Bouquet>(deps.db, 'tg_set_stock', { p_chat: chat, p_shop: shop.id, p_bouquet: session.state.bouquetId, p_in_stock: n === null || n > 0, p_stock: n });
+      await setState({});
+      return void (await reply(`«${b.name}»: ${stockText(b)}.`));
+    }
     if (session.state.step === 'price' && session.state.bouquetId) {
       const price = parsePrice(text);
       if (price === null) return void (await reply('Пришлите цену числом, например 4500'));
@@ -182,13 +206,13 @@ async function onCallback(deps: ServerDeps, q: TgCallback) {
     if (kind === 'b') {
       const list = await call<Bouquet[]>(deps.db, 'tg_bouquets', { p_chat: chat, p_shop: shop.id });
       const cur = list.find((b) => b.id === id);
-      if (!cur) return void (await answer('Букет не найден'));
+      if (!cur) return void (await answer('Товар не найден'));
       const turnOn = !cur.inStock;
       const b = await call<Bouquet>(deps.db, 'tg_set_stock', {
         p_chat: chat, p_shop: shop.id, p_bouquet: id, p_in_stock: turnOn, p_stock: turnOn && cur.stock === 0 ? null : cur.stock,
       });
       if (q.message) {
-        await tg.api('editMessageText', { chat_id: chat, message_id: q.message.message_id, text: bouquetLine(b), reply_markup: bouquetButtons(b) });
+        await editProductMessage(tg, chat, q.message, b);
       }
       return void (await answer(b.inStock ? 'Теперь в наличии' : 'Скрыто: нет в наличии'));
     }
@@ -196,6 +220,20 @@ async function onCallback(deps: ServerDeps, q: TgCallback) {
       await call(deps.db, 'tg_session_set', { p_chat: chat, p_shop: shop.id, p_state: { step: 'price', bouquetId: id } });
       await tg.send(chat, 'Пришлите новую цену числом, например 4500');
       return void (await answer('Жду цену'));
+    }
+    if (kind === 'q') {
+      await call(deps.db, 'tg_session_set', { p_chat: chat, p_shop: shop.id, p_state: { step: 'stock', bouquetId: id } });
+      await tg.send(chat, 'Сколько штук в наличии? Пришлите число. 0 — нет в наличии, «-» — без учёта остатка.');
+      return void (await answer('Жду количество'));
+    }
+    if (kind === 'c' && isKind(id)) {
+      await answer(section(id).title);
+      return void (await sendSection(deps, chat, shop, id));
+    }
+    if (kind === 'a' && isKind(id)) {
+      await call(deps.db, 'tg_session_set', { p_chat: chat, p_shop: shop.id, p_state: { step: 'add_photo', kind: id } });
+      await tg.send(chat, `${section(id).emoji} ${section(id).title}: пришлите фото товара с подписью:\n${ADD_FORMAT}`);
+      return void (await answer(section(id).title));
     }
     await answer('');
   } catch (e) {
@@ -216,41 +254,105 @@ async function sendOrders(deps: ServerDeps, chat: number, shop: ShopRef) {
   if (orders.length > 15) await tg.send(chat, `Ещё ${orders.length - 15} — в кабинете на сайте.`);
 }
 
-function bouquetLine(b: Bouquet) {
-  return `${b.inStock ? '✅' : '⛔'} ${b.kind === 'card' ? '💌 ' : b.kind === 'balloon' ? '🎈 ' : b.kind === 'firework' ? '🎆 ' : ''}${b.name} — ${formatRub(b.price)}${b.stock !== null ? ` · ${b.stock} шт.` : ''}\nid: ${b.id}`;
+function stockText(b: Bouquet) {
+  return b.inStock ? `в наличии${b.stock !== null ? `, ${b.stock} шт.` : ''}` : 'нет в наличии';
+}
+/** Caption under the product photo: name, price and stock, then the description. No internal ids. */
+export function productCaption(b: Bouquet) {
+  const head = `${b.inStock ? '✅' : '⛔'} ${section(b.kind).emoji} ${b.name}\n${formatRub(b.price)} · ${stockText(b)}`;
+  return (b.description ? `${head}\n\n${b.description}` : head).slice(0, 1000);
 }
 function bouquetButtons(b: Bouquet) {
   return {
-    inline_keyboard: [[
-      { text: b.inStock ? 'Убрать из наличия' : 'Вернуть в наличие', callback_data: `b:${b.id}` },
-      { text: 'Изменить цену', callback_data: `p:${b.id}` },
-    ]],
+    inline_keyboard: [
+      [{ text: b.inStock ? 'Убрать из наличия' : 'Вернуть в наличие', callback_data: `b:${b.id}` }],
+      [{ text: 'Изменить цену', callback_data: `p:${b.id}` }, { text: 'Количество', callback_data: `q:${b.id}` }],
+    ],
   };
 }
+function photoUrl(deps: ServerDeps, shop: ShopRef, photo: string): string | null {
+  if (/^https:\/\//.test(photo)) return photo;
+  const base = deps.siteUrl.replace(/\/$/, '');
+  if (!/^https:\/\//.test(base) || !photo) return null;
+  return `${base}/t/${shop.slug}/${photo.replace(/^\.?\//, '')}`;
+}
+async function sendProduct(deps: ServerDeps, chat: number, shop: ShopRef, b: Bouquet) {
+  const tg = deps.telegram!;
+  const url = photoUrl(deps, shop, b.photo);
+  if (url) {
+    try {
+      return void (await tg.api('sendPhoto', { chat_id: chat, photo: url, caption: productCaption(b), reply_markup: bouquetButtons(b) }));
+    } catch (e) {
+      deps.log?.('sendPhoto failed, sending text', e);
+    }
+  }
+  await tg.send(chat, productCaption(b), bouquetButtons(b));
+}
+async function editProductMessage(tg: NonNullable<ServerDeps['telegram']>, chat: number, msg: TgMessage, b: Bouquet) {
+  if (msg.photo?.length) {
+    await tg.api('editMessageCaption', { chat_id: chat, message_id: msg.message_id, caption: productCaption(b), reply_markup: bouquetButtons(b) });
+  } else {
+    await tg.api('editMessageText', { chat_id: chat, message_id: msg.message_id, text: productCaption(b), reply_markup: bouquetButtons(b) });
+  }
+}
+function chunk<T>(list: T[], n: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += n) out.push(list.slice(i, i + n));
+  return out;
+}
 
-async function sendBouquets(deps: ServerDeps, chat: number, shop: ShopRef) {
+/** «Каталог»: the four sections with how many products each has. */
+async function sendSections(deps: ServerDeps, chat: number, shop: ShopRef) {
   const tg = deps.telegram!;
   const list = await call<Bouquet[]>(deps.db, 'tg_bouquets', { p_chat: chat, p_shop: shop.id });
-  if (!list.length) return void (await tg.send(chat, 'Букетов пока нет. Добавьте первый: /add'));
-  for (const b of list.slice(0, 30)) await tg.send(chat, bouquetLine(b), bouquetButtons(b));
+  await tg.send(chat, 'Каталог — выберите раздел:', {
+    inline_keyboard: chunk(BOT_SECTIONS.map((x) => ({
+      text: `${x.emoji} ${x.title} (${list.filter((b) => b.kind === x.kind).length})`,
+      callback_data: `c:${x.kind}`,
+    })), 2),
+  });
+}
+
+/** One section: every product as a photo card with price, description and stock buttons. */
+async function sendSection(deps: ServerDeps, chat: number, shop: ShopRef, kind: ProductKind) {
+  const tg = deps.telegram!;
+  const list = (await call<Bouquet[]>(deps.db, 'tg_bouquets', { p_chat: chat, p_shop: shop.id })).filter((b) => b.kind === kind);
+  const sec = section(kind);
+  if (!list.length) {
+    return void (await tg.send(chat, `${sec.emoji} ${sec.title}: пока пусто. Добавьте товар кнопкой «${BTN.add}».`, MENU));
+  }
+  await tg.send(chat, `${sec.emoji} ${sec.title} — ${list.length} шт.`, MENU);
+  for (const b of list.slice(0, 30)) await sendProduct(deps, chat, shop, b);
+  if (list.length > 30) await tg.send(chat, `Ещё ${list.length - 30} — в кабинете на сайте.`);
 }
 
 async function createBouquet(
   deps: ServerDeps, chat: number, shop: ShopRef,
-  p: { name: string; price: number; description: string; photo: string },
+  p: { name: string; price: number; description: string; stock: number | null; photo: string; kind?: ProductKind },
   reply: (t: string, m?: unknown) => Promise<unknown>, setState: (s: Session['state']) => Promise<unknown>,
 ) {
   const id = bouquetIdFromName(p.name);
-  // «Открытка …» in the name adds a postcard, «Шар…» — balloons, «Фейерверк…»/«Салют…» — fireworks; anything else is a bouquet
-  const kind = /^открытк/i.test(p.name) ? 'card'
+  // the section chosen in «Добавить товар»; without it, guess from the name
+  // («Открытка …» — postcard, «Шар…» — balloons, «Фейерверк…»/«Салют…» — fireworks, otherwise flowers)
+  const kind: ProductKind = p.kind ?? (/^открытк/i.test(p.name) ? 'card'
     : /^(шар|шары|связка шар)/i.test(p.name) ? 'balloon'
-    : /^(фейерверк|салют|батарея салют)/i.test(p.name) ? 'firework' : 'bouquet';
+    : /^(фейерверк|салют|батарея салют)/i.test(p.name) ? 'firework' : 'bouquet');
   const b = await call<Bouquet>(deps.db, 'tg_upsert_bouquet', {
     p_chat: chat, p_shop: shop.id,
-    p: { kind, id, name: p.name, description: p.description, price: p.price, photo: p.photo, inStock: true, stock: null, sort: 100 },
+    p: { kind, id, name: p.name, description: p.description, price: p.price, photo: p.photo, inStock: p.stock === null || p.stock > 0, stock: p.stock, sort: 100 },
   });
   await setState({});
-  await reply(`${KIND_LABELS[kind]} «${b.name}» за ${formatRub(b.price)}: ${kind === 'balloon' ? 'добавлены' : kind === 'card' ? 'добавлена' : 'добавлен'} на сайт.\nid: ${b.id}`);
+  const sec = section(kind);
+  await reply(`Готово, товар добавлен на сайт в раздел «${sec.title}».`);
+  await sendProduct(deps, chat, shop, b);
+}
+
+/** «5» → 5, «0» → 0 (out of stock), «-» / «без учёта» → null (stock not tracked); anything else → undefined. */
+export function parseStock(v: string): number | null | undefined {
+  const t = v.trim().toLowerCase();
+  if (/^(-|—|без учёта|без учета|нет учёта)$/.test(t)) return null;
+  if (/^\d{1,5}( ?шт\.?)?$/.test(t)) return parseInt(t, 10);
+  return undefined;
 }
 
 export function parsePrice(v: string): number | null {
@@ -258,12 +360,17 @@ export function parsePrice(v: string): number | null {
   return Number.isFinite(n) && n > 0 && n < 10_000_000 ? Math.round(n) : null;
 }
 
-export function parseBouquetText(t: string): { name: string; price: number; description: string } | null {
+/** «Название; Цена; Описание; Количество» — description and quantity may be left out. */
+export function parseBouquetText(t: string): { name: string; price: number; description: string; stock: number | null } | null {
   const parts = t.split(/[;|\n]/).map((x) => x.trim()).filter(Boolean);
   if (parts.length < 2) return null;
   const price = parsePrice(parts[1]);
   if (!price || parts[0].length < 2 || parts[0].length > 80) return null;
-  return { name: parts[0], price, description: parts.slice(2).join('. ').slice(0, 600) };
+  let rest = parts.slice(2);
+  let stock: number | null = null;
+  const last = rest.length ? parseStock(rest[rest.length - 1]) : undefined;
+  if (rest.length && typeof last === 'number') { stock = last; rest = rest.slice(0, -1); }
+  return { name: parts[0], price, description: rest.join('. ').slice(0, 600), stock };
 }
 
 const TR: Record<string, string> = {

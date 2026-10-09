@@ -253,6 +253,55 @@ describe('Telegram bot', () => {
     expect(added.photo).toMatch(/^https:\/\/cdn\.test\//);
   });
 
+  it('«Каталог»: sections Цветы, Открытки, Шары, Фейерверки; each shows only its own products, with no ids', async () => {
+    const msg = (id: number, text: string) => ({ update_id: 100 + id, message: { message_id: id, chat: { id: CHAT, type: 'private' }, text } });
+    const tap = (id: number, data: string) => ({ update_id: 200 + id, callback_query: { id: `q${id}`, from: { id: CHAT }, message: { message_id: 50 + id, chat: { id: CHAT, type: 'private' } }, data } });
+    sent.length = 0;
+    await tg(msg(1, '🗂 Каталог'));
+    const menu = sent.find((m) => m.method === 'sendMessage' && /выберите раздел/.test(String(m.payload.text)))!;
+    const buttons = (menu.payload.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard.flat();
+    expect(buttons.map((b) => b.text.replace(/^\S+ | \(\d+\)$/g, ''))).toEqual(['Цветы', 'Открытки', 'Шары', 'Фейерверки']);
+    // the reply keyboard now has «Каталог» and «Добавить товар» instead of the old buttons
+    const kb = JSON.stringify(sent.find((m) => (m.payload.reply_markup as { keyboard?: unknown })?.keyboard)?.payload.reply_markup ?? {});
+    sent.length = 0;
+    await tg(tap(1, 'c:firework'));
+    const cards = sent.filter((m) => m.method === 'sendPhoto');
+    expect(cards.map((m) => String(m.payload.caption).split('\n')[0])).toEqual([
+      expect.stringContaining('Фонтан «Золотой дождь»'), expect.stringContaining('Салют «Праздничный»'), expect.stringContaining('Бенгальские огни'),
+      expect.stringContaining('Римская свеча'), // added from the cabinet in an earlier test
+    ]);
+    expect(String(cards[0].payload.photo)).toBe('https://shop.test/t/demo/photos/firework-fountain-gold.jpg');
+    for (const c of cards) expect(String(c.payload.caption)).not.toMatch(/\bid:|firework-/);
+    expect(String(cards[0].payload.caption)).toMatch(/590 ₽ · в наличии, 18 шт\./); // 2 of 20 were ordered in an earlier test
+    expect(kb === '{}' || /Каталог/.test(kb)).toBe(true);
+  });
+
+  it('«Добавить товар»: choose a section, then photo with «Название; Цена; Описание; Количество»; set the quantity of any product', async () => {
+    const msg = (id: number, extra: Record<string, unknown>) => ({ update_id: 300 + id, message: { message_id: id, chat: { id: CHAT, type: 'private' }, ...extra } });
+    const tap = (id: number, data: string) => ({ update_id: 400 + id, callback_query: { id: `a${id}`, from: { id: CHAT }, message: { message_id: 70 + id, chat: { id: CHAT, type: 'private' } }, data } });
+    sent.length = 0;
+    await tg(msg(1, { text: '➕ Добавить товар' }));
+    const ask = sent.find((m) => /В какой раздел/.test(String(m.payload.text)))!;
+    expect(JSON.stringify(ask.payload.reply_markup)).toContain('a:balloon');
+    await tg(tap(1, 'a:balloon'));
+    sent.length = 0;
+    await tg(msg(2, { caption: 'Звезда золотая; 900; Фольгированная звезда 45 см с гелием; 7', photo: [{ file_id: 'g', width: 900, height: 900 }] }));
+    type P = { id: string; kind: string; name: string; price: number; stock: number | null; inStock: boolean; description: string };
+    let pub = (await db.rpc('shop_public', { p_slug: 'demo' }, { role: 'anon' })) as { bouquets: P[] };
+    const star = pub.bouquets.find((b) => b.name === 'Звезда золотая')!;
+    expect(star).toMatchObject({ kind: 'balloon', price: 900, stock: 7, inStock: true, description: 'Фольгированная звезда 45 см с гелием' });
+    expect(sent.map((m) => String(m.payload.text ?? m.payload.caption)).join('\n')).toMatch(/добавлен на сайт в раздел «Шары»/);
+    expect(sent.map((m) => String(m.payload.text ?? m.payload.caption)).join('\n')).not.toMatch(/\bid:/);
+    // «Количество» under any product, then a number
+    await tg(tap(2, `q:${star.id}`));
+    await tg(msg(3, { text: '3' }));
+    await tg(tap(3, 'q:pion-cloud'));
+    await tg(msg(4, { text: '0' }));
+    pub = (await db.rpc('shop_public', { p_slug: 'demo' }, { role: 'anon' })) as { bouquets: P[] };
+    expect(pub.bouquets.find((b) => b.id === star.id)!.stock).toBe(3);
+    expect(pub.bouquets.find((b) => b.id === 'pion-cloud')!.inStock).toBe(false);
+  });
+
   it('ignores requests without the webhook secret and unlinked chats', async () => {
     const r = await createTelegramHandler(deps())(new Request('https://x', { method: 'POST', body: '{}' }));
     expect(r.status).toBe(401);
