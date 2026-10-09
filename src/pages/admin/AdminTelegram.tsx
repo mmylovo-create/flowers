@@ -36,7 +36,7 @@ export default function AdminTelegram({ shopId }: { shopId: string }) {
           <Heading level={3}>Команды бота</Heading>
           <Text>/orders — ближайшие заказы и смена статуса</Text>
           <Text>/bouquets — наличие и цены кнопками</Text>
-          <Text>/add — добавить букет: фото с подписью «Название; Цена; Описание»</Text>
+          <Text>/add — добавить товар: фото с подписью «Название; Цена; Описание» (название со слова «Шары», «Открытка», «Фейерверк» — в нужный раздел)</Text>
           <Text>/price id цена · /stock id on|off|количество</Text>
         </VStack>
       </Card>
