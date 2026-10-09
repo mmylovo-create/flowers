@@ -30,6 +30,20 @@ pnpm shop:verify roza                     # проверка готовой сс
 3. `pnpm shop:publish <название>` — применяет миграции, задаёт секреты, разворачивает функции `api` и `telegram`, создаёт магазин и вход владельца (пароль печатается один раз), ставит вебхук бота, публикует сайт и запускает `shop:verify`.
 4. Владелец открывает кабинет → Telegram → «Подключить» и жмёт ссылку — заказы начинают приходить в бота.
 
+### Уже подключённый проект Supabase «flowers» (nhwqnnybvgjzjwvhtkeu)
+
+База, магазин `demo` и функции `api`, `telegram` уже развёрнуты. Адрес и публичный ключ — в `.env.production`, поэтому сайт на Vercel собирается без настройки переменных. Осталось:
+
+1. Supabase → SQL Editor → вставить и выполнить `supabase/manual/run_in_sql_editor.sql` (функции удаления букета и привязки бота).
+2. Supabase → Authentication → Users → Add user (почта и пароль владельца, Auto Confirm). Затем в SQL Editor:
+   ```sql
+   select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+   select add_owner('82bbb676-6492-46f1-8701-653ec21b5294', (select id from auth.users where email = 'почта@владельца'));
+   ```
+3. Edge Functions → Secrets: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` (любая длинная строка), `SITE_URL` (ссылка Vercel). В `.env.production` впишите `VITE_TELEGRAM_BOT`.
+4. Vercel → Add New → Project → импорт репозитория (или `pnpm dlx vercel --prod`).
+5. Вебхук бота: открыть в браузере `https://api.telegram.org/bot<ТОКЕН>/setWebhook?url=https://nhwqnnybvgjzjwvhtkeu.supabase.co/functions/v1/telegram&secret_token=<TELEGRAM_WEBHOOK_SECRET>`.
+
 ## Как устроено
 
 | Часть | Где |

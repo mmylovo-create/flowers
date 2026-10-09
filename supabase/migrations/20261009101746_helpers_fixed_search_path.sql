@@ -1,0 +1,9 @@
+alter function public.err(text, text) set search_path = public;
+alter function public.is_service() set search_path = public;
+alter function public.assert_service() set search_path = public;
+alter function public.iso(timestamptz) set search_path = public;
+alter function public.bouquet_json(public.bouquets) set search_path = public;
+alter function public.order_json(public.orders, public.shops) set search_path = public;
+alter function public.discount_percent(jsonb, int) set search_path = public;
+alter function public.slot_problem(jsonb, timestamptz) set search_path = public;
+alter function public.validate_settings(jsonb) set search_path = public;

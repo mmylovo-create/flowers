@@ -18,6 +18,14 @@ create function auth.uid() returns uuid language sql stable as $$
 create function auth.role() returns text language sql stable as $$
   select nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role' $$;
 grant execute on all functions in schema auth to anon, authenticated, service_role;
+-- minimal stand-in for Supabase Storage (enough for the storage migration's bucket and policies)
+create schema storage;
+create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
+alter table storage.objects enable row level security;
+create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
+create schema supabase_migrations;
+create table supabase_migrations.schema_migrations (version text primary key, name text, statements text[]);
 `;
 
 export interface Claims { role: 'anon' | 'authenticated' | 'service_role'; sub?: string }
