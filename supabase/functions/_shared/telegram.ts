@@ -24,7 +24,7 @@ const HELP = [
   '/orders — ближайшие заказы и смена статуса',
   '/bouquets — наличие и цены (кнопки под каждым букетом)',
   '/add — добавить букет: пришлите фото с подписью «Название; Цена; Описание»',
-  '   (название со слова «Открытка» — добавится открытка, со слова «Шар»/«Шары» — воздушные шары)',
+  '   (название со слова «Открытка» — добавится открытка, «Шар»/«Шары» — воздушные шары, «Фейерверк»/«Салют» — фейерверк)',
   '/price <id> <цена> — изменить цену',
   '/stock <id> on|off|<количество> — изменить наличие',
   '/shop — выбрать магазин, если их несколько',
@@ -217,7 +217,7 @@ async function sendOrders(deps: ServerDeps, chat: number, shop: ShopRef) {
 }
 
 function bouquetLine(b: Bouquet) {
-  return `${b.inStock ? '✅' : '⛔'} ${b.kind === 'card' ? '💌 ' : b.kind === 'balloon' ? '🎈 ' : ''}${b.name} — ${formatRub(b.price)}${b.stock !== null ? ` · ${b.stock} шт.` : ''}\nid: ${b.id}`;
+  return `${b.inStock ? '✅' : '⛔'} ${b.kind === 'card' ? '💌 ' : b.kind === 'balloon' ? '🎈 ' : b.kind === 'firework' ? '🎆 ' : ''}${b.name} — ${formatRub(b.price)}${b.stock !== null ? ` · ${b.stock} шт.` : ''}\nid: ${b.id}`;
 }
 function bouquetButtons(b: Bouquet) {
   return {
@@ -241,8 +241,10 @@ async function createBouquet(
   reply: (t: string, m?: unknown) => Promise<unknown>, setState: (s: Session['state']) => Promise<unknown>,
 ) {
   const id = bouquetIdFromName(p.name);
-  // «Открытка …» in the name adds a postcard, «Шар…» — balloons; anything else is a bouquet
-  const kind = /^открытк/i.test(p.name) ? 'card' : /^(шар|шары|связка шар)/i.test(p.name) ? 'balloon' : 'bouquet';
+  // «Открытка …» in the name adds a postcard, «Шар…» — balloons, «Фейерверк…»/«Салют…» — fireworks; anything else is a bouquet
+  const kind = /^открытк/i.test(p.name) ? 'card'
+    : /^(шар|шары|связка шар)/i.test(p.name) ? 'balloon'
+    : /^(фейерверк|салют|батарея салют)/i.test(p.name) ? 'firework' : 'bouquet';
   const b = await call<Bouquet>(deps.db, 'tg_upsert_bouquet', {
     p_chat: chat, p_shop: shop.id,
     p: { kind, id, name: p.name, description: p.description, price: p.price, photo: p.photo, inStock: true, stock: null, sort: 100 },

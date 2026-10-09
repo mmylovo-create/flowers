@@ -43,7 +43,9 @@ const deps = (): ServerDeps => ({
 // A free slot `n` positions into tomorrow (shop time)
 function slot(n = 0, dayOffset = 1): string {
   const now = new Date();
-  const day = deliveryDays(S, now).filter((d) => d.isOpen)[dayOffset].date;
+  // a later test closes Sundays (owner settings), so pick days that are open either way
+  const days = deliveryDays({ ...S, hours: { ...S.hours, sun: null } }, now);
+  const day = days.filter((d) => d.isOpen)[dayOffset].date;
   return daySlots(S, day, now, {}).filter((x) => x.state === 'free')[n].start;
 }
 function order(over: Record<string, unknown> = {}) {
@@ -111,6 +113,22 @@ describe('creating orders', () => {
     expect(body.order!.bouquetPhoto).toBe('photos/balloon-heart.jpg');
     const pub = (await db.rpc('shop_public', { p_slug: 'demo' }, { role: 'anon' })) as { bouquets: { id: string; stock: number }[] };
     expect(pub.bouquets.find((b) => b.id === 'balloon-heart')!.stock).toBe(13);
+  });
+
+  it('fireworks are delivered on their own, at full price, with their own line in the total', async () => {
+    const { status, body } = await api({ action: 'create_order', order: order({
+      slotStart: slot(8),
+      items: [{ productId: 'firework-battery-25', quantity: 1 }, { productId: 'firework-fountain-gold', quantity: 2 }, { productId: 'card-love', quantity: 1, note: 'С праздником!' }],
+    }) });
+    expect(status).toBe(200);
+    // 3490 + 2 × 590 = 4670 fireworks + 250 postcard; under 6000, so delivery is paid
+    expect(body.order!.price).toMatchObject({ bouquetCount: 0, fireworksSubtotal: 4670, cardsSubtotal: 250, discount: 0, deliveryFee: 400, total: 5320 });
+    expect(body.order!.items.map((i) => i.kind)).toEqual(['firework', 'firework', 'card']);
+    const pub = (await db.rpc('shop_public', { p_slug: 'demo' }, { role: 'anon' })) as { bouquets: { id: string; stock: number }[] };
+    expect(pub.bouquets.find((b) => b.id === 'firework-fountain-gold')!.stock).toBe(18);
+    // the owner can add fireworks from the cabinet
+    const added = await db.rpc('owner_upsert_bouquet', { p_shop: shopId, p: { kind: 'firework', id: 'firework-roman', name: 'Римская свеча', price: 450, photo: 'x.jpg', inStock: true, stock: null, sort: 64 } }, { role: 'authenticated', sub: ownerId });
+    expect(added).toMatchObject({ kind: 'firework', price: 450 });
   });
 
   it('a postcard alone is not delivered; the same product twice is rejected', async () => {

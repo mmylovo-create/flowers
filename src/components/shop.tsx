@@ -38,7 +38,7 @@ export function Hero() {
       <RouterLink ref={ctaRef} to={cart.count ? `/s/${slug}/order` : `/s/${slug}/catalog`} className="hero__cta glass" data-testid="hero-cta">
         <span className="hero__cta-label">
           <CalendarCheckIcon size={24} weight="bold" aria-hidden />
-          Записаться
+          Заказать букет
         </span>
       </RouterLink>
     </section>

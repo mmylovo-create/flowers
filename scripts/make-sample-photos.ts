@@ -145,6 +145,58 @@ function balloonSvg(id: string, name: string, seed: number) {
   </svg>`;
 }
 
+const FIREWORK_STYLES: Record<string, { colors: string[]; kind: 'fountain' | 'burst' | 'sparkler' }> = {
+  'firework-fountain-gold': { colors: ['#F3C969', '#F7DD9A', '#E9A23B'], kind: 'fountain' },
+  'firework-battery-25': { colors: ['#E25A7A', '#F3C969', '#F48C6B', '#C46BD1'], kind: 'burst' },
+  'firework-sparklers': { colors: ['#FCE7A8', '#F3C969', '#FFFFFF'], kind: 'sparkler' },
+};
+
+/** Fireworks on a dusky pastel evening sky: a spark fountain, salvo bursts, or sparklers. */
+function fireworkSvg(id: string, name: string, seed: number) {
+  const st = FIREWORK_STYLES[id] ?? { colors: ['#E25A7A', '#F3C969', '#C46BD1'], kind: 'burst' as const };
+  const R = rng(seed);
+  let art = '';
+  const rays = (cx: number, cy: number, r: number, n: number, color: string, width = 4) => {
+    let out = '';
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + R() * 0.08;
+      const r1 = r * (0.28 + R() * 0.1);
+      const r2 = r * (0.85 + R() * 0.2);
+      const x1 = cx + Math.cos(a) * r1, y1 = cy + Math.sin(a) * r1, x2 = cx + Math.cos(a) * r2, y2 = cy + Math.sin(a) * r2;
+      out += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="${width}" stroke-linecap="round"/>`;
+      out += `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="${(width * 1.3).toFixed(1)}" fill="${color}"/>`;
+    }
+    return `<g opacity=".95">${out}</g>`;
+  };
+  if (st.kind === 'burst') {
+    const spots = [[300, 290, 190], [610, 250, 160], [470, 470, 140], [690, 520, 110], [230, 560, 100]];
+    spots.forEach(([x, y, r], k) => { art += rays(x, y, r, 22, st.colors[k % st.colors.length], 5); });
+    art += `<rect x="360" y="700" width="180" height="120" rx="14" fill="#C4506D"/><rect x="360" y="700" width="180" height="26" rx="10" fill="#E2899F"/>`;
+    for (let k = 0; k < 5; k++) art += `<circle cx="${385 + k * 32}" cy="713" r="8" fill="#5B2F3E"/>`;
+  } else if (st.kind === 'fountain') {
+    for (let k = 0; k < 90; k++) {
+      const a = -Math.PI / 2 + (R() - 0.5) * 1.1;
+      const len = 260 + R() * 260;
+      const x2 = 450 + Math.cos(a) * len * 0.8, y2 = 690 + Math.sin(a) * len;
+      art += `<path d="M450 690 Q ${(450 + x2) / 2} ${(y2 - 60).toFixed(1)} ${x2.toFixed(1)} ${(y2 + 80).toFixed(1)}" stroke="${st.colors[k % st.colors.length]}" stroke-width="${(2 + R() * 2.5).toFixed(1)}" fill="none" stroke-linecap="round" opacity="${(0.55 + R() * 0.45).toFixed(2)}"/>`;
+    }
+    art += `<path d="M395 690 L 505 690 L 490 820 L 410 820 Z" fill="#E2899F"/><rect x="390" y="680" width="120" height="20" rx="8" fill="#C4506D"/>`;
+  } else {
+    for (let k = 0; k < 3; k++) {
+      const x = 330 + k * 120, top = 300 + k * 30;
+      art += `<line x1="${x}" y1="${top}" x2="${x - 40 + k * 40}" y2="820" stroke="#8C7A80" stroke-width="6" stroke-linecap="round"/>`;
+      art += rays(x, top, 110, 28, st.colors[k % st.colors.length], 3);
+      art += `<circle cx="${x}" cy="${top}" r="16" fill="#FFF6D6"/>`;
+    }
+  }
+  let stars = '';
+  for (let k = 0; k < 40; k++) stars += `<circle cx="${(R() * 900).toFixed(0)}" cy="${(R() * 600).toFixed(0)}" r="${(1 + R() * 2).toFixed(1)}" fill="#fff" opacity="${(0.3 + R() * 0.5).toFixed(2)}"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900">
+    <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B2A4A"/><stop offset=".7" stop-color="#7A4D6E"/><stop offset="1" stop-color="#E7B7B9"/></linearGradient></defs>
+    <rect width="100%" height="100%" fill="url(#sky)"/>${stars}${art}<title>${name}</title>
+  </svg>`;
+}
+
 function logoSvg(name: string, accent: string) {
   const letter = name.trim()[0]?.toUpperCase() ?? '✿';
   let petals = '';
@@ -175,7 +227,7 @@ export async function makeSamplePhotos(slug: string, force = false) {
   let i = 0;
   for (const b of t.bouquets) {
     if (!/^https?:/.test(b.photo)) {
-      const svg = b.kind === 'card' ? cardSvg(b.id, b.name, 3 + i) : b.kind === 'balloon' ? balloonSvg(b.id, b.name, 5 + i) : bouquetSvg(900, 900, PALETTES[i % PALETTES.length], 31 + i * 17);
+      const svg = b.kind === 'card' ? cardSvg(b.id, b.name, 3 + i) : b.kind === 'balloon' ? balloonSvg(b.id, b.name, 5 + i) : b.kind === 'firework' ? fireworkSvg(b.id, b.name, 9 + i) : bouquetSvg(900, 900, PALETTES[i % PALETTES.length], 31 + i * 17);
       await write(b.photo, svg, 900, 900);
     }
     i++;

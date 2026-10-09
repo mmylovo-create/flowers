@@ -81,7 +81,7 @@ export function cartDetails(lines: CartLine[], products: Product[], settings: Pi
     .map((l) => ({ line: l, product: products.find((p) => p.id === l.productId) }))
     .filter((r): r is { line: CartLine; product: Product } => !!r.product);
   const price = priceOrder(settings, rows.map((r) => ({ price: r.product.price, quantity: r.line.quantity, kind: r.product.kind })));
-  /** something that can be delivered on its own (a bouquet or balloons) */
+  /** something that can be delivered on its own (a bouquet, balloons or fireworks) */
   const hasBouquet = rows.some((r) => DELIVERABLE_KINDS.includes(r.product.kind));
   const hasCard = rows.some((r) => r.product.kind === 'card');
   const unavailable = rows.filter((r) => !r.product.inStock || (r.product.stock !== null && r.product.stock < r.line.quantity));

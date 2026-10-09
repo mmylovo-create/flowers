@@ -25,6 +25,18 @@ export function shopTheme(slug: string, t: ShopSettings['theme']) {
     },
     components: {
       button: { base: { borderRadius: 'var(--radius-full)', fontWeight: 'var(--font-weight-semibold)' } },
+      // A switch you can read at a glance on the pastel background: a toned track when off,
+      // the accent when on, and a white round knob with a shadow in both states.
+      switch: {
+        base: { backgroundColor: 'color-mix(in srgb, var(--color-text-secondary) 42%, transparent)' },
+        checked: { backgroundColor: 'var(--color-accent)' },
+      },
+      'switch-thumb': {
+        base: {
+          backgroundColor: 'var(--color-on-accent)',
+          boxShadow: '0 1px 3px color-mix(in srgb, var(--color-text-primary) 35%, transparent), 0 0 0 0.5px color-mix(in srgb, var(--color-text-primary) 20%, transparent)',
+        },
+      },
     },
   });
 }

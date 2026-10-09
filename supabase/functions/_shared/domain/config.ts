@@ -48,21 +48,22 @@ export const discountTierSchema = z.object({
   percent: z.number().min(1).max(90),
 });
 
-export const PRODUCT_KINDS = ['bouquet', 'balloon', 'card'] as const;
+export const PRODUCT_KINDS = ['bouquet', 'balloon', 'card', 'firework'] as const;
 export type ProductKind = (typeof PRODUCT_KINDS)[number];
-export const KIND_LABELS: Record<ProductKind, string> = { bouquet: 'Букет', balloon: 'Шары', card: 'Открытка' };
+export const KIND_LABELS: Record<ProductKind, string> = { bouquet: 'Букет', balloon: 'Шары', card: 'Открытка', firework: 'Фейерверк' };
 
 /** Catalog subcategories, in the order they are shown. */
 export const CATEGORIES: { kind: ProductKind; slug: string; title: string; short: string; hint: string }[] = [
   { kind: 'bouquet', slug: 'bouquets', title: 'Букеты', short: 'Букеты', hint: 'Собираем в день доставки из свежих цветов.' },
   { kind: 'balloon', slug: 'balloons', title: 'Воздушные шары', short: 'Шары', hint: 'Надуваем гелием перед доставкой — летают от 3 дней.' },
   { kind: 'card', slug: 'cards', title: 'Открытки', short: 'Открытки', hint: 'Подпишем от руки вашим текстом и вложим в букет.' },
+  { kind: 'firework', slug: 'fireworks', title: 'Фейерверки', short: 'Фейерверки', hint: 'Салюты и фонтаны для праздника. Продаём только совершеннолетним — курьер может попросить паспорт.' },
 ];
 
-/** Bouquets and balloons can be delivered on their own; a postcard only comes with them. */
-export const DELIVERABLE_KINDS: ProductKind[] = ['bouquet', 'balloon'];
+/** Bouquets, balloons and fireworks can be delivered on their own; a postcard only comes with them. */
+export const DELIVERABLE_KINDS: ProductKind[] = ['bouquet', 'balloon', 'firework'];
 
-/** A catalog item: a bouquet, helium balloons, or a postcard sold alongside them. */
+/** A catalog item: a bouquet, helium balloons, fireworks, or a postcard sold alongside them. */
 export const bouquetSchema = z.object({
   kind: z.enum(PRODUCT_KINDS).default('bouquet'),
   id: z.string().regex(/^[a-z0-9-]{2,40}$/, 'id: латиница, цифры и дефис'),
@@ -138,7 +139,7 @@ export const tenantFileSchema = z.object({
   slug: z.string().regex(/^[a-z0-9-]{2,40}$/, 'Адрес магазина: латиница, цифры и дефис'),
   settings: shopSettingsSchema,
   bouquets: z.array(bouquetSchema).min(1).max(200)
-    .refine((l) => l.some((b) => b.kind !== 'card'), 'Нужен хотя бы один букет или шары'),
+    .refine((l) => l.some((b) => b.kind !== 'card'), 'Нужен хотя бы один букет, шары или фейерверк'),
   owner: z.object({
     email: z.string().email().or(z.literal('')).default(''),
     telegramIds: z.array(z.number().int()).default([]),

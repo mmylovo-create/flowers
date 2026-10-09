@@ -7,7 +7,7 @@ test('home page: photo, name, bouquets with prices, reviews, contacts and order 
   await expect(page.getByRole('heading', { level: 1, name: 'Флёр' })).toBeVisible();
   await expect(page.getByText('Собираем букеты из сезонных цветов')).toBeVisible();
   const cta = page.getByTestId('hero-cta');
-  await expect(cta).toHaveText(/Записаться/);
+  await expect(cta).toHaveText(/Заказать букет/);
   // the wide glass button sits on the hero photo
   const hero = await page.locator('#hero-media').boundingBox();
   const btn = await cta.boundingBox();
@@ -70,11 +70,31 @@ test('«Скидки» tab: order in advance, quantity discounts, contact us', a
   await expect(page.getByText('От 3 букетов')).toBeVisible();
   await expect(page.getByText('−10%')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Связаться с нами' })).toBeVisible();
+  // every discount example is shown in full: no clipped or ellipsized text
+  for (const ex of await page.locator('.discount-example').all()) {
+    await expect(ex).toContainText(/вместо \d[\d\s]* ₽/);
+    expect(await ex.evaluate((e) => e.scrollWidth <= e.clientWidth + 1 && getComputedStyle(e).textOverflow !== 'ellipsis')).toBe(true);
+  }
+  // «Связаться с нами» opens the contacts in a dialog
+  await page.getByTestId('advance-contact').click();
+  const dlg = page.getByTestId('contact-dialog');
+  await expect(dlg).toBeVisible();
+  await expect(dlg.getByRole('link', { name: /Позвонить/ })).toHaveAttribute('href', 'tel:+79991234567');
+  await expect(dlg.getByRole('link', { name: 'Telegram' })).toBeVisible();
+  await expect(dlg.getByText(/Москва, ул\. Покровка/)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dlg).toBeHidden();
 });
 
-test('catalog: subcategories Букеты, Воздушные шары, Открытки; product pages open from tiles', async ({ page }) => {
+test('catalog: subcategories Букеты, Воздушные шары, Открытки, Фейерверки; product pages open from tiles', async ({ page }) => {
   await page.goto(`${SHOP}/catalog`);
-  for (const t of ['Букеты', 'Воздушные шары', 'Открытки']) await expect(page.getByRole('heading', { level: 2, name: t })).toBeVisible();
+  for (const t of ['Букеты', 'Воздушные шары', 'Открытки', 'Фейерверки']) await expect(page.getByRole('heading', { level: 2, name: t })).toBeVisible();
+  await page.goto(`${SHOP}/catalog/fireworks`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Фейерверки' })).toBeVisible();
+  for (const id of ['firework-fountain-gold', 'firework-battery-25', 'firework-sparklers']) await expect(page.getByTestId(`bouquet-${id}`)).toBeVisible();
+  await expect(page.getByTestId('category-fireworks')).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByTestId('category-fireworks')).toBeInViewport({ ratio: 0.9 }); // the active chip is scrolled into view
+  await page.goto(`${SHOP}/catalog`);
   await page.getByTestId('category-balloons').click();
   await expect(page).toHaveURL(/\/catalog\/balloons$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Воздушные шары' })).toBeVisible();

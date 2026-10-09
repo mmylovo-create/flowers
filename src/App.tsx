@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo } from 'react';
-import { Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation, useMatch, useParams } from 'react-router-dom';
 import { Theme } from '@astryxdesign/core/theme';
 import { LinkProvider } from '@astryxdesign/core/Link';
 import { VStack } from '@astryxdesign/core/Layout';
@@ -9,7 +9,7 @@ import { TENANTS, DEFAULT_SLUG } from './generated/tenants';
 import { ShopProvider, useShop } from './lib/shop';
 import { shopTheme } from './lib/theme';
 import { BottomNav } from './components/BottomNav';
-import { CartButton } from './components/CartButton';
+import { TopActions } from './components/TopActions';
 import { AppLink } from './components/common';
 import Home from './pages/Home';
 
@@ -20,6 +20,7 @@ const OrderDetails = lazy(() => import('./pages/OrderDetails'));
 const Advance = lazy(() => import('./pages/Advance'));
 const Product = lazy(() => import('./pages/Product'));
 const Admin = lazy(() => import('./pages/admin/Admin'));
+const Account = lazy(() => import('./pages/Account'));
 
 function setHead(selector: string, attr: string, value: string, create: () => HTMLElement) {
   let el = document.head.querySelector(selector) as HTMLElement | null;
@@ -69,17 +70,18 @@ function ShopLayout() {
 function ThemedShop() {
   const { shop, slug } = useShop();
   const theme = useMemo(() => shopTheme(slug, shop.settings.theme), [slug, shop.settings.theme]);
+  const isHome = !!useMatch('/s/:slug');
   return (
     <Theme theme={theme} mode="light">
       <ShopHead />
       <ScrollToTop />
       <a className="skip-link" href="#main">К содержимому</a>
-      <main className="page" id="main">
+      <main className={isHome ? 'page page--home' : 'page'} id="main">
         <Suspense fallback={<VStack gap={4}><Skeleton height={48} /><Skeleton height={320} /></VStack>}>
           <Outlet />
         </Suspense>
       </main>
-      <CartButton />
+      <TopActions />
       <BottomNav slug={slug} />
     </Theme>
   );
@@ -102,6 +104,7 @@ export default function App() {
           <Route path="orders" element={<MyOrders />} />
           <Route path="orders/:token" element={<OrderDetails />} />
           <Route path="advance" element={<Advance />} />
+          <Route path="account" element={<Account />} />
           <Route path="admin" element={<Admin />} />
           <Route path="*" element={<EmptyState title="Страница не найдена" />} />
         </Route>

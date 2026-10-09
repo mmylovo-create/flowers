@@ -31,6 +31,9 @@ body {
 @media (min-width: 768px) {
   .page { padding-inline: var(--spacing-8); }
 }
+/* pages other than the home page start below the pinned top-right buttons */
+.page:not(.page--home) { padding-top: calc(env(safe-area-inset-top, 0px) + var(--top-bar-h)); }
+:root { --top-bar-h: calc(48px + var(--spacing-3) * 2); }
 
 /* ───────── glass (liquid-gl renders the real effect; this is the look until it is ready
    and the fallback when WebGL is unavailable) ───────── */
@@ -45,7 +48,7 @@ body {
    Our lenses are the navigation and buttons, so they must stay tappable. */
 .bottom-nav.glass,
 .hero__cta.glass,
-.cart-fab.glass { pointer-events: auto !important; }
+.top-btn.glass { pointer-events: auto !important; }
 
 .glass.glass--gl {
   background: transparent;
@@ -313,30 +316,45 @@ body {
 .card-option__price { font-size: 14px; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
 .card-option__check { position: absolute; top: var(--spacing-3); right: var(--spacing-3); color: var(--color-accent); background: var(--color-background-surface); border-radius: var(--radius-full); }
 
-/* basket button */
-.cart-fab {
+/* pinned top-right buttons: basket + «Войти»/«Кабинет» (glass, rounded, always on screen) */
+.top-actions {
   position: fixed;
   z-index: 41;
   top: calc(var(--spacing-3) + env(safe-area-inset-top, 0px));
-  right: var(--spacing-3);
+  right: calc(var(--spacing-3) + env(safe-area-inset-right, 0px));
+  display: flex;
+  gap: var(--spacing-2);
+  pointer-events: none;
+}
+.top-btn {
+  pointer-events: auto;
   height: 48px;
   min-width: 48px;
+  box-sizing: border-box;
   padding-inline: var(--spacing-3);
   border-radius: var(--radius-full);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--spacing-1-5);
   color: var(--color-text-primary);
   text-decoration: none;
   font-weight: 700;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--duration-fast, 175ms) var(--ease-standard, ease);
 }
-.cart-fab__count {
+.top-btn--account { padding-inline: var(--spacing-3) var(--spacing-4); }
+.top-btn[aria-current='page'] { color: var(--color-text-accent); }
+.top-btn:active { transform: scale(0.96); }
+.top-btn__count {
   min-width: 22px; height: 22px; padding-inline: 6px; box-sizing: border-box;
   border-radius: var(--radius-full); background: var(--color-accent); color: var(--color-on-accent);
   font-size: 13px; display: inline-flex; align-items: center; justify-content: center;
 }
-.cart-fab:focus-visible { outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color); outline-offset: 2px; }
+.top-btn:focus-visible { outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .top-btn { transition: none; } .top-btn:active { transform: none; } }
 
 /* basket lines */
 .cart-line { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--spacing-3); align-items: start; }
@@ -360,7 +378,8 @@ body {
   font-size: 15px;
   -webkit-tap-highlight-color: transparent;
 }
-.cat-chip[aria-current='page'] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
+.cat-chip { font-family: inherit; cursor: pointer; }
+.cat-chip[aria-current='page'], .cat-chip[aria-pressed='true'] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
 .cat-chip__count { font-size: 13px; font-weight: 600; opacity: 0.7; font-variant-numeric: tabular-nums; }
 .cat-chip:focus-visible { outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color); outline-offset: 2px; }
 
@@ -389,7 +408,35 @@ body {
   backdrop-filter: blur(14px) saturate(1.4);
 }
 @media (min-width: 768px) { .cat-tabs--sticky { margin-inline: calc(-1 * var(--spacing-8)); padding-inline: var(--spacing-8); } }
-.cat-tabs__row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--spacing-1-5); }
-.cat-tabs__row .cat-chip { justify-content: center; padding-inline: var(--spacing-2); white-space: nowrap; }
-@media (max-width: 479px) { .cat-tabs__row .cat-chip__count { display: none; } .cat-tabs__row .cat-chip { font-size: 15px; } }
-@media (min-width: 768px) { .cat-tabs__row { grid-auto-columns: max-content; } .cat-tabs__row .cat-chip { padding-inline: var(--spacing-4); } }
+.cat-tabs__row {
+  position: relative;
+  display: flex;
+  gap: var(--spacing-1-5);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  margin-inline: calc(-1 * var(--spacing-4));
+  padding-inline: var(--spacing-4);
+  scroll-padding-inline: var(--spacing-4);
+}
+.cat-tabs__row::-webkit-scrollbar { display: none; }
+.cat-tabs__row .cat-chip { justify-content: center; padding-inline: var(--spacing-4); white-space: nowrap; }
+@media (max-width: 479px) { .cat-tabs__row .cat-chip__count { display: none; } }
+/* while pinned, the bar sits beside the top-right buttons rather than under them */
+.cat-tabs--sticky { top: calc(env(safe-area-inset-top, 0px) + var(--spacing-3) - var(--spacing-2) + 2px); }
+.cat-tabs--sticky.is-pinned .cat-tabs__row { margin-right: calc(var(--top-actions-w, 0px) - var(--spacing-1)); }
+/* a soft fade on the right edge hints that the chips scroll sideways */
+.cat-tabs__row { -webkit-mask-image: linear-gradient(to right, black calc(100% - var(--spacing-6)), transparent); mask-image: linear-gradient(to right, black calc(100% - var(--spacing-6)), transparent); }
+
+/* dialogs: a solid panel; header and buttons stay put, the middle scrolls on short screens */
+dialog.astryx-dialog { background: var(--color-background-surface); }
+dialog.astryx-dialog::backdrop { background: color-mix(in srgb, var(--color-text-primary) 45%, transparent); }
+.sheet { max-height: inherit; min-height: 0; overflow: hidden; background: var(--color-background-surface); }
+.sheet__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.sheet__footer { flex: none; border-top: 1px solid var(--color-border); background: var(--color-background-surface); }
+.sheet .astryx-file-input, .sheet input[type='file'] { max-width: 100%; }
+
+/* «Скидки»: the example price is never cut off — it wraps, and each sum stays on one line */
+.discount-example { white-space: normal; overflow-wrap: anywhere; display: block; }
+.nowrap { white-space: nowrap; }
+.strike { text-decoration: line-through; }

@@ -75,6 +75,9 @@ describe('prices and discounts', () => {
     // balloons are full price and don't count towards the bouquet discount
     expect(priceOrder(s, [{ price: 3200, quantity: 2, kind: 'bouquet' }, { price: 1750, quantity: 1, kind: 'balloon' }]))
       .toMatchObject({ bouquetCount: 2, balloonsSubtotal: 1750, discountPercent: 0, subtotal: 8150, deliveryFee: 0, total: 8150 });
+    // fireworks are full price too, with their own subtotal
+    expect(priceOrder(s, [{ price: 1000, quantity: 3, kind: 'bouquet' }, { price: 3490, quantity: 1, kind: 'firework' }]))
+      .toMatchObject({ bouquetCount: 3, fireworksSubtotal: 3490, discountPercent: 5, discount: 150, subtotal: 6490, total: 6340 });
     // a postcard does not count towards the 3-bouquet discount
     expect(priceOrder(s, [{ price: 1000, quantity: 2, kind: 'bouquet' }, { price: 250, quantity: 1, kind: 'card' }]))
       .toMatchObject({ discountPercent: 0, total: 2250 + 400 });

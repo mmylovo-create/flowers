@@ -39,6 +39,7 @@ export function factLines(f: Facts): Record<string, string> {
   const inStock = f.shop.bouquets.filter((b) => b.inStock && b.kind === 'bouquet');
   const balloons = f.shop.bouquets.filter((b) => b.inStock && b.kind === 'balloon');
   const cards = f.shop.bouquets.filter((b) => b.inStock && b.kind === 'card');
+  const fireworks = f.shop.bouquets.filter((b) => b.inStock && b.kind === 'firework');
   const out: Record<string, string> = {
     hours: `Время работы: ${hoursSummary(s)}. Сейчас ${f.open ? 'открыто' : 'закрыто'}.`,
     address: `Адрес: ${s.address}.`,
@@ -50,6 +51,9 @@ export function factLines(f: Facts): Record<string, string> {
     balloons: balloons.length
       ? `Воздушные шары с гелием: ${balloons.map((c) => `${c.name} — ${formatRub(c.price)}`).join('; ')}. Можно заказать отдельно или вместе с букетом.`
       : 'Воздушных шаров сейчас нет в наличии.',
+    fireworks: fireworks.length
+      ? `Фейерверки: ${fireworks.map((c) => `${c.name} — ${formatRub(c.price)}`).join('; ')}. Привезём отдельно или вместе с букетом; продаём только совершеннолетним.`
+      : 'Фейерверков сейчас нет в наличии.',
     cards: cards.length
       ? `Открытки к букету: ${cards.map((c) => `${c.name} — ${formatRub(c.price)}`).join('; ')}. Текст напишем от руки — укажите его при заказе.`
       : 'Открыток сейчас нет.',
@@ -75,6 +79,7 @@ const INTENTS: { key: string; re: RegExp }[] = [
   { key: 'contacts', re: /телефон|позвон|связат|телеграм|telegram|(^|[^а-яa-z])(вк|vk)([^а-яa-z]|$)|написать/ },
   { key: 'cards', re: /открытк|подпис|записк/ },
   { key: 'balloons', re: /шар|гели/ },
+  { key: 'fireworks', re: /фейерверк|салют|пиротехн|фонтан/ },
   { key: 'stock', re: /налич|есть ли|какие букет|что есть|ассортимент|каталог/ },
 ];
 

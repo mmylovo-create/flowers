@@ -204,6 +204,39 @@
       "sort": 53
     },
     {
+      "kind": "firework",
+      "id": "firework-fountain-gold",
+      "name": "Фонтан «Золотой дождь»",
+      "description": "Наземный фонтан золотых искр высотой до двух метров, горит около 40 секунд. Для двора, дачи и праздника на открытом воздухе.",
+      "price": 590,
+      "photo": "photos/firework-fountain-gold.jpg",
+      "inStock": true,
+      "stock": 20,
+      "sort": 61
+    },
+    {
+      "kind": "firework",
+      "id": "firework-battery-25",
+      "name": "Салют «Праздничный», 25 залпов",
+      "description": "Батарея из 25 залпов: красные и золотые пионы с треском в финале. Около 40 секунд, высота разрыва до 30 метров.",
+      "price": 3490,
+      "photo": "photos/firework-battery-25.jpg",
+      "inStock": true,
+      "stock": 8,
+      "sort": 62
+    },
+    {
+      "kind": "firework",
+      "id": "firework-sparklers",
+      "name": "Бенгальские огни, 10 шт.",
+      "description": "Свечи 30 см, каждая горит около минуты. Красиво смотрятся на фото с букетом и на празднике у входа.",
+      "price": 290,
+      "photo": "photos/firework-sparklers.jpg",
+      "inStock": true,
+      "stock": null,
+      "sort": 63
+    },
+    {
       "kind": "card",
       "id": "card-birthday",
       "name": "Открытка «С днём рождения»",

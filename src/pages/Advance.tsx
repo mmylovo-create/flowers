@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { VStack, HStack } from '@astryxdesign/core/Layout';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { Card } from '@astryxdesign/core/Card';
@@ -5,15 +6,16 @@ import { Button } from '@astryxdesign/core/Button';
 import { Item } from '@astryxdesign/core/Item';
 import { List } from '@astryxdesign/core/List';
 import { Token } from '@astryxdesign/core/Token';
-import { CalendarBlankIcon } from '@phosphor-icons/react';
+import { CalendarBlankIcon, ChatCircleDotsIcon } from '@phosphor-icons/react';
 import { formatRub, priceOrder } from '@domain';
 import { useShop } from '../lib/shop';
 import { Assistant } from '../components/shop';
-import { ContactSection, PageTitle, SampleBanner } from '../components/common';
+import { ContactDialog, ContactSection, PageTitle, SampleBanner } from '../components/common';
 import { Reveal } from '../components/Reveal';
 
 export default function Advance() {
-  const { shop, slug } = useShop();
+  const { shop } = useShop();
+  const [contactOpen, setContactOpen] = useState(false);
   const s = shop.settings;
   const sample = shop.bouquets.find((b) => b.inStock && b.kind === 'bouquet') ?? shop.bouquets.find((b) => b.kind === 'bouquet');
   return (
@@ -27,7 +29,8 @@ export default function Advance() {
             <Heading level={2}>Цветы можно заказать заранее</Heading>
           </HStack>
           <Text>{s.advance.text || 'Выберите дату и время — мы закрепим их за вами и соберём букет в день доставки.'}</Text>
-          <Button label="Выбрать дату доставки" variant="primary" size="lg" href={`/s/${slug}/order`} />
+          <Button label="Связаться с нами" variant="primary" size="lg" icon={<ChatCircleDotsIcon size={20} aria-hidden />}
+            onClick={() => setContactOpen(true)} data-testid="advance-contact" />
         </VStack>
       </Card>
       {s.advance.discounts.length ? (
@@ -39,12 +42,14 @@ export default function Advance() {
                 {s.advance.discounts.map((d) => {
                   const ex = sample ? priceOrder(s, [{ price: sample.price, quantity: d.minQty, kind: 'bouquet' }]) : null;
                   return (
-                    <Item
-                      key={d.minQty}
-                      label={`От ${d.minQty} букетов`}
-                      description={ex ? `Например, ${d.minQty} × «${sample!.name}»: ${formatRub(ex.subtotal - ex.discount)} вместо ${formatRub(ex.subtotal)}` : undefined}
-                      endContent={<Token label={`−${d.percent}%`} color="pink" />}
-                    />
+                    <Item key={d.minQty} align="start" label={`От ${d.minQty} букетов`} endContent={<Token label={`−${d.percent}%`} color="pink" />}
+                      description={ex ? (
+                        <Text color="secondary" className="discount-example">
+                          Например, {d.minQty} × «{sample!.name}»:{' '}
+                          <Text weight="bold" color="primary" className="nowrap">{formatRub(ex.subtotal - ex.discount)}</Text>{' '}
+                          вместо <Text className="nowrap strike">{formatRub(ex.subtotal)}</Text>
+                        </Text>
+                      ) : undefined} />
                   );
                 })}
               </List>
@@ -54,6 +59,7 @@ export default function Advance() {
         </Reveal>
       ) : null}
       <Reveal><ContactSection /></Reveal>
+      <ContactDialog isOpen={contactOpen} onClose={() => setContactOpen(false)} />
       <Reveal><Assistant /></Reveal>
     </VStack>
   );

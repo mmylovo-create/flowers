@@ -287,6 +287,7 @@ export default function Order() {
             <VStack gap={1}>
               {price.bouquetsSubtotal ? <HStack justify="between"><Text>Букеты: {price.bouquetCount} шт.</Text><Text>{formatRub(price.bouquetsSubtotal)}</Text></HStack> : null}
               {price.balloonsSubtotal ? <HStack justify="between"><Text>Воздушные шары</Text><Text>{formatRub(price.balloonsSubtotal)}</Text></HStack> : null}
+              {price.fireworksSubtotal ? <HStack justify="between"><Text>Фейерверки</Text><Text>{formatRub(price.fireworksSubtotal)}</Text></HStack> : null}
               {price.cardsSubtotal ? <HStack justify="between"><Text>Открытки</Text><Text>{formatRub(price.cardsSubtotal)}</Text></HStack> : null}
               {price.discount ? <HStack justify="between"><Text color="accent">Скидка {price.discountPercent}%</Text><Text color="accent">−{formatRub(price.discount)}</Text></HStack> : null}
               <HStack justify="between"><Text>Доставка</Text><Text>{price.deliveryFee ? formatRub(price.deliveryFee) : 'бесплатно'}</Text></HStack>

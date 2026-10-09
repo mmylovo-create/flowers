@@ -32,7 +32,7 @@ try {
     const res = await page.goto(url, { waitUntil: 'networkidle' });
     ok(`[${label}] страница открывается (${res?.status()})`, res?.ok() ?? false);
     ok(`[${label}] название «${t.settings.name}»`, await page.getByRole('heading', { level: 1, name: t.settings.name }).isVisible());
-    ok(`[${label}] кнопка «Записаться» на главном фото`, await page.getByTestId('hero-cta').isVisible());
+    ok(`[${label}] кнопка «Заказать букет» на главном фото`, await page.getByTestId('hero-cta').isVisible());
     ok(`[${label}] нижняя навигация`, await page.getByRole('navigation', { name: 'Основная навигация' }).isVisible());
     const sample = await page.getByText('Это образец магазина').count();
     ok(`[${label}] магазин принимает настоящие заказы (не образец)`, sample === 0);

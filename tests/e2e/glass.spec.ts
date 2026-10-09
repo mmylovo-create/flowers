@@ -3,7 +3,7 @@ import { SHOP } from './helpers';
 
 // With a GPU the real liquid-gl lens is on; it disables taps on its element unless we restore them.
 // `?glass=force` turns the lens on even where the browser renders WebGL in software.
-test('real glass: bottom buttons and «Записаться» stay tappable', async ({ page }) => {
+test('real glass: bottom buttons and «Заказать букет» stay tappable', async ({ page }) => {
   await page.goto(`${SHOP}/?glass=force`);
   const nav = page.getByRole('navigation', { name: 'Основная навигация' });
   const ready = await page.locator('.bottom-nav.glass--gl').waitFor({ timeout: 20_000 }).then(() => true, () => false);

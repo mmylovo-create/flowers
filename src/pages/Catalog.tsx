@@ -29,7 +29,7 @@ export default function Catalog() {
   return (
     <VStack gap={6}>
       <SampleBanner />
-      <PageTitle title={current?.title ?? 'Каталог'} subtitle={current?.hint ?? 'Букеты, воздушные шары и открытки — всё можно собрать в один заказ с одной доставкой.'} />
+      <PageTitle title={current?.title ?? 'Каталог'} subtitle={current?.hint ?? 'Букеты, воздушные шары, открытки и фейерверки — всё можно собрать в один заказ с одной доставкой.'} />
       <CategoryTabs sticky />
       <Switch label="Только в наличии" value={onlyInStock} onChange={setOnlyInStock} />
       {shown.map((c) => {
