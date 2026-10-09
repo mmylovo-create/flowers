@@ -161,7 +161,9 @@ body {
   outline-offset: 3px;
 }
 @media (min-width: 768px) {
-  .hero__cta { left: 50%; right: auto; width: min(420px, 60%); transform: translateX(-50%); }
+  /* centred without transform: a transform would make the button its own stacking context
+     and trap the label under the glass canvas (z-index 2), hiding the text on desktop */
+  .hero__cta { left: 0; right: 0; margin-inline: auto; width: min(420px, 60%); }
 }
 
 /* ───────── appear on scroll ───────── */
