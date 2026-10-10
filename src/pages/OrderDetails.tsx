@@ -45,7 +45,7 @@ export default function OrderDetails() {
   return (
     <VStack gap={6}>
       <SampleBanner />
-      {created ? <Banner status="success" title="Заказ оформлен!" description="Мы получили заказ и скоро свяжемся с вами для подтверждения." /> : null}
+      {created ? <Banner status="success" title="Заказ оформлен!" description="Мы получили заказ. При необходимости с вами свяжутся по указанным вами контактам." /> : null}
       <HStack gap={3} justify="between" vAlign="center" wrap="wrap">
         <Heading level={1}>Заказ №{o.number}</Heading>
         <StatusToken status={o.status} />

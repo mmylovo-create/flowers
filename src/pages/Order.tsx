@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatInTimeZone } from 'date-fns-tz';
 import { VStack, HStack } from '@astryxdesign/core/Layout';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { Card } from '@astryxdesign/core/Card';
@@ -15,10 +14,11 @@ import { CheckboxInput } from '@astryxdesign/core/CheckboxInput';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Divider } from '@astryxdesign/core/Divider';
 import { Skeleton } from '@astryxdesign/core/Skeleton';
-import { MinusIcon, PlusIcon, TrashIcon, ShoppingBagIcon } from '@phosphor-icons/react';
+import { MinusIcon, PlusIcon, TrashIcon, ShoppingBagIcon, ClockIcon, ChatCircleTextIcon } from '@phosphor-icons/react';
+import { useToast } from '@astryxdesign/core/Toast';
 import {
-  daySlots, deliveryDays, earliestStart, formatRub, MAX_CARD_TEXT, orderInputSchema,
-  type ContactChannel, type OrderInput,
+  daySlots, deliveryDays, formatRub, formatSlot, MAX_CARD_TEXT, orderInputSchema,
+  type ContactChannel, type OrderInput, type Product,
 } from '@domain';
 import { useShop } from '../lib/shop';
 import { ApiError, dayRange } from '../lib/api';
@@ -26,7 +26,9 @@ import { rememberOrder } from '../lib/myOrders';
 import { PageTitle, SampleBanner } from '../components/common';
 import { useTelInput } from '../components/useTelInput';
 import { CardOffer } from '../components/CardOffer';
-import { cartDetails, useCart } from '../lib/cart';
+import { cartDetails, useCart, type CartLine } from '../lib/cart';
+import { DeliveryDatePicker, longDayLabel } from '../components/DeliveryDatePicker';
+import { AddressFields, checkAddress, formatAddress, type Address, type AddressErrors } from '../components/AddressFields';
 
 type Fields = Partial<Record<keyof OrderInput, string>>;
 
@@ -50,7 +52,10 @@ export default function Order() {
   const [phone, setPhone] = useState('');
   const [channel, setChannel] = useState<ContactChannel>('telegram');
   const [handle, setHandle] = useState('');
-  const [address, setAddress] = useState('');
+  const [addr, setAddr] = useState<Address>({ city: s.city, street: '', house: '', flat: '' });
+  const [addrErrors, setAddrErrors] = useState<AddressErrors>({});
+  const address = formatAddress(addr);
+  const toast = useToast();
   const [comment, setComment] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [fields, setFields] = useState<Fields>({});
@@ -70,12 +75,29 @@ export default function Order() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 60_000); return () => clearInterval(t); }, []);
   const slots = useMemo(() => daySlots(s, day, now, busyQ.data ?? {}), [s, day, now, busyQ.data]);
+  // open days where nothing is free any more, and the nearest free time to suggest
+  const { fullDays, nearest } = useMemo(() => {
+    const full = new Set<string>();
+    let first: { day: string; start: string } | null = null;
+    for (const d of days) {
+      if (!d.isOpen) continue;
+      const free = daySlots(s, d.date, now, busyQ.data ?? {}).find((x) => x.state === 'free');
+      if (!free) full.add(d.date);
+      else if (!first) first = { day: d.date, start: free.start };
+    }
+    return { fullDays: full, nearest: first };
+  }, [days, s, now, busyQ.data]);
+  // start on the first day that still has free time (late in the evening that is tomorrow)
+  const autoDay = useRef(true);
+  useEffect(() => {
+    if (autoDay.current && busyQ.data && nearest) { autoDay.current = false; setDay(nearest.day); }
+  }, [busyQ.data, nearest]);
   useEffect(() => {
     if (slot && !slots.some((x) => x.start === slot && x.state === 'free')) setSlot(null);
   }, [slots, slot]);
 
   const nextDiscount = s.advance.discounts.filter((d) => d.minQty > price.bouquetCount).sort((a, b) => a.minQty - b.minQty)[0];
-  const earliest = formatInTimeZone(earliestStart(s, now), s.timezone, 'HH:mm');
+  const todayIso = days[0].date;
 
   const create = useMutation({
     mutationFn: (input: OrderInput) => api.createOrder(input),
@@ -112,16 +134,19 @@ export default function Order() {
       contactHandle: handle, address, comment, deliveryConfirmed: confirmed, idempotencyKey: idemKey.current,
     };
     const parsed = orderInputSchema.safeParse(input);
+    const aErr = checkAddress(addr);
+    setAddrErrors(aErr);
     if (!hasBouquet) {
-      setFormError('Добавьте в корзину букет или шары — открытки доставляем вместе с ними.');
+      setFormError('Добавьте в корзину букет, шары или фейерверк — открытки доставляем вместе с ними.');
       return;
     }
     if (unavailable.length) {
       setFormError(`Не хватает в наличии: ${unavailable.map((u) => u.product.name).join(', ')}. Уменьшите количество или уберите из корзины.`);
       return;
     }
-    if (!parsed.success) {
+    if (!parsed.success || Object.keys(aErr).length) {
       const f: Fields = {};
+      if (parsed.success) { setFields({}); setFormError('Проверьте адрес доставки'); return; }
       for (const i of parsed.error.issues) f[i.path[0] as keyof OrderInput] ??= i.message;
       setFields(f);
       setFormError('Проверьте заполненные поля');
@@ -129,6 +154,25 @@ export default function Order() {
     }
     setFields({});
     create.mutate(input as OrderInput);
+  };
+
+  const removeLine = (product: Product, line: CartLine) => {
+    const index = cart.lines.findIndex((l) => l.productId === product.id);
+    cart.remove(product.id);
+    const dismiss = toast({
+      type: 'info',
+      autoHideDuration: 8000,
+      uniqueID: `removed-${product.id}`,
+      body: (
+        <VStack gap={2}>
+          <Text color="inherit">«{product.name}» убран из корзины</Text>
+          <HStack>
+            <Button label="Оставить в корзине" size="sm" variant="secondary" data-testid="undo-remove"
+              onClick={() => { cart.restore(line, index); dismiss(); }} />
+          </HStack>
+        </VStack>
+      ),
+    });
   };
 
   if (!rows.length) {
@@ -171,12 +215,13 @@ export default function Order() {
                   <HStack justify="between" vAlign="center" gap={2}>
                     <span className="qty">
                       <IconButton label={`Меньше: ${product.name}`} icon={<MinusIcon size={18} />} size="sm"
-                        onClick={() => cart.setQuantity(product.id, line.quantity - 1)} isDisabled={line.quantity <= 1} />
+                        onClick={() => (line.quantity <= 1 ? removeLine(product, line) : cart.setQuantity(product.id, line.quantity - 1))} />
                       <span className="qty__value" aria-live="polite" data-testid={`qty-${product.id}`}>{line.quantity}</span>
                       <IconButton label={`Больше: ${product.name}`} icon={<PlusIcon size={18} />} size="sm"
                         onClick={() => cart.setQuantity(product.id, line.quantity + 1)} isDisabled={line.quantity >= max} />
                     </span>
-                    <IconButton label={`Убрать ${product.name}`} icon={<TrashIcon size={18} />} variant="ghost" size="sm" onClick={() => cart.remove(product.id)} />
+                    <Button label="Удалить" icon={<TrashIcon size={18} />} variant="ghost" size="sm" onClick={() => removeLine(product, line)}
+                      aria-label={`Удалить из корзины: ${product.name}`} data-testid={`remove-${product.id}`} />
                   </HStack>
                   {short ? <Text color="accent">Сейчас {product.inStock ? `в наличии только ${product.stock} шт.` : 'нет в наличии'}</Text> : null}
                   {product.kind === 'card' ? (
@@ -189,7 +234,7 @@ export default function Order() {
           })}
           {price.discountPercent ? <Text color="accent" weight="semibold">Скидка {price.discountPercent}% на букеты за количество</Text> : null}
           {nextDiscount ? <Text color="secondary">От {nextDiscount.minQty} букетов в заказе — скидка {nextDiscount.percent}%</Text> : null}
-          {!hasBouquet ? <Banner status="info" title="Добавьте букет или шары" description="Открытки доставляем вместе с букетом или шарами." /> : null}
+          {!hasBouquet ? <Banner status="info" title="Добавьте букет, шары или фейерверк" description="Открытки доставляем вместе с ними." /> : null}
           {hasBouquet && !hasCard ? (
             <VStack gap={3}>
               <CardOffer value={offerCard} onChange={setOfferCard} note={offerNote} onNote={setOfferNote} title="Не забыли открытку?" />
@@ -204,24 +249,20 @@ export default function Order() {
       <Card padding={5} elevation="low">
         <VStack gap={4}>
           <Heading level={2}>2. Дата и время доставки</Heading>
-          <Text color="secondary">Ближайшая доставка — не раньше {earliest} (через час от текущего времени).</Text>
-          <div className="chip-row" role="group" aria-label="Дата доставки">
-            {days.map((d) => (
-              <button
-                key={d.date}
-                type="button"
-                className="day-chip"
-                aria-pressed={d.date === day}
-                disabled={!d.isOpen}
-                onClick={() => { setDay(d.date); setSlot(null); }}
-                data-testid={`day-${d.date}`}
-              >
-                <span className="day-chip__wd">{d.isToday ? 'Сегодня' : d.weekday}</span>
-                <span className="day-chip__d">{d.dayLabel}</span>
-                {!d.isOpen ? <span className="day-chip__wd">выходной</span> : null}
-              </button>
-            ))}
-          </div>
+          {nearest ? (
+            <div className="suggest-time" data-testid="nearest-slot">
+              <ClockIcon size={22} aria-hidden />
+              <VStack gap={0.5}>
+                <Text color="secondary">Ближайшее время</Text>
+                <Text weight="bold">{formatSlot(nearest.start, s.timezone, s.delivery.slotMinutes)}</Text>
+              </VStack>
+              {slot === nearest.start ? <Text color="accent" weight="semibold">Выбрано</Text> : (
+                <Button label="Выбрать" variant="primary" size="sm" onClick={() => { autoDay.current = false; setDay(nearest.day); setSlot(nearest.start); }} data-testid="pick-nearest" />
+              )}
+            </div>
+          ) : busyQ.isLoading ? null : <Banner status="warning" title="Свободного времени пока нет" description="Позвоните нам — постараемся помочь." />}
+          <DeliveryDatePicker days={days} value={day} fullDays={fullDays} onChange={(d) => { autoDay.current = false; setDay(d); setSlot(null); }} />
+          <Text weight="semibold" data-testid="chosen-day">Доставка: {longDayLabel(day, todayIso)}</Text>
           {busyQ.isLoading ? <Skeleton height={120} /> : (
             slots.length ? (
               <div className="slot-grid" role="group" aria-label="Время доставки">
@@ -245,6 +286,9 @@ export default function Order() {
               </div>
             ) : <Text color="secondary">В этот день доставки нет — выберите другой.</Text>
           )}
+          {slots.length && !slots.some((x) => x.state === 'free') ? (
+            <Text color="secondary">На этот день свободного времени уже нет — выберите другой день стрелками или нажмите «Выбрать» выше.</Text>
+          ) : null}
           <div className="legend" aria-hidden>
             <span><span className="legend__swatch" />Свободно</span>
             <span><span className="legend__swatch legend__swatch--busy" />Занято</span>
@@ -273,9 +317,9 @@ export default function Order() {
             isRequired
             status={fields.contactHandle ? { type: 'error', message: fields.contactHandle } : undefined}
           />
-          <TextInput label="Адрес доставки" value={address} onChange={setAddress} autoComplete="street-address" placeholder="Улица, дом, квартира" isRequired
-            description={s.delivery.zone || undefined}
-            status={fields.address ? { type: 'error', message: fields.address } : undefined} />
+          <Heading level={3}>Адрес доставки</Heading>
+          <AddressFields value={addr} onChange={(a) => { setAddr(a); if (Object.keys(addrErrors).length) setAddrErrors(checkAddress(a)); }}
+            errors={{ ...addrErrors, ...(fields.address && !addrErrors.street ? { street: fields.address } : {}) }} zone={s.delivery.zone} />
           <TextArea label="Комментарий" value={comment} onChange={setComment} isOptional rows={2} placeholder="Домофон, кому вручить, удобное время звонка" />
         </VStack>
       </Card>
@@ -313,6 +357,10 @@ export default function Order() {
             onClick={submit}
             data-testid="submit-order"
           />
+          <HStack gap={2} vAlign="start" data-testid="contact-note">
+            <ChatCircleTextIcon size={22} aria-hidden className="icon-inline" />
+            <Text color="secondary">При необходимости с вами свяжутся по указанным вами контактам</Text>
+          </HStack>
         </VStack>
       </Card>
     </VStack>

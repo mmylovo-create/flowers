@@ -38,7 +38,7 @@ export default defineConfig({
         {
           command: 'pnpm build && pnpm exec vite preview --port 4173 --strictPort',
           url: 'http://localhost:4173/s/demo/',
-          env: { VITE_SUPABASE_URL: BACKEND_URL, VITE_SUPABASE_ANON_KEY: ANON_KEY, VITE_TELEGRAM_BOT: 'flowers_local_bot' },
+          env: { VITE_SUPABASE_URL: BACKEND_URL, VITE_SUPABASE_ANON_KEY: ANON_KEY, VITE_TELEGRAM_BOT: 'flowers_local_bot', VITE_YANDEX_SUGGEST_KEY: 'e2e-test-key' },
           reuseExistingServer: false,
           timeout: 300_000,
         },

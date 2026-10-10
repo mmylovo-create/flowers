@@ -52,6 +52,8 @@ export interface CartApi {
   setQuantity: (productId: string, quantity: number) => void;
   setNote: (productId: string, note: string) => void;
   remove: (productId: string) => void;
+  /** put a removed line back where it was (undo) */
+  restore: (line: CartLine, index: number) => void;
   clear: () => void;
 }
 
@@ -71,6 +73,12 @@ export function useCart(slug: string): CartApi {
       : ls.map((l) => (l.productId === productId ? { ...l, quantity: Math.min(99, quantity) } : l))),
     setNote: (productId, note) => update((ls) => ls.map((l) => (l.productId === productId ? { ...l, note } : l))),
     remove: (productId) => update((ls) => ls.filter((l) => l.productId !== productId)),
+    restore: (line, index) => update((ls) => {
+      if (ls.some((l) => l.productId === line.productId)) return ls;
+      const next = [...ls];
+      next.splice(Math.min(index, next.length), 0, line);
+      return next;
+    }),
     clear: () => update(() => []),
   };
 }

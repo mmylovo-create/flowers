@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fillCustomer, firstFreeSlot, openOrderForm, SHOP, tomorrow } from './helpers';
+import { fillCustomer, firstFreeSlot, openOrderForm, pickDay, SHOP, tomorrow } from './helpers';
 
 test('bouquet page offers a postcard; basket → order with both, then «Мои заказы» and cancel', async ({ page }) => {
   await page.goto(`${SHOP}/catalog/bouquets`);
@@ -27,7 +27,7 @@ test('bouquet page offers a postcard; basket → order with both, then «Мои 
   await expect(page.getByRole('heading', { name: 'Корзина и оформление' })).toBeVisible();
   await expect(page.getByTestId('qty-morning-garden')).toHaveText('3');
   await expect(page.getByTestId('cart-line-card-love').getByLabel('Текст открытки')).toHaveValue('С годовщиной! Люблю');
-  await page.getByTestId(`day-${tomorrow()}`).click();
+  await pickDay(page, tomorrow());
   const { slot, time } = await firstFreeSlot(page);
   await slot.click();
   await expect(slot).toHaveAttribute('aria-pressed', 'true');
@@ -38,7 +38,7 @@ test('bouquet page offers a postcard; basket → order with both, then «Мои 
   await expect(page.getByText('Заказ оформлен!')).toBeVisible();
   await expect(page.getByRole('heading', { name: /Заказ №\d+/ })).toBeVisible();
   await expect(page.getByText(new RegExp(`${time}–`)).first()).toBeVisible();
-  await expect(page.getByText('Москва, ул. Пушкина, 10, кв. 5')).toBeVisible();
+  await expect(page.getByText('Москва, ул. Пушкина, д. 10, кв. 5')).toBeVisible();
   await expect(page.getByTestId('order-item')).toHaveCount(2);
   await expect(page.getByText('Текст открытки: «С годовщиной! Люблю»')).toBeVisible();
   await expect(page.getByTestId('cart-button')).toHaveCount(0); // basket emptied
@@ -103,10 +103,10 @@ test('pressing «Подтвердить» repeatedly creates one order', async (
 
 test('the earliest delivery is one hour from now', async ({ page }) => {
   await openOrderForm(page);
-  await expect(page.getByText(/Ближайшая доставка — не раньше \d\d:\d\d \(через час/)).toBeVisible();
-  const today = await page.locator('.day-chip').first();
+  const today = page.locator('.cal__day[data-today]');
   if (await today.isDisabled()) test.skip(true, 'shop closed today');
   await today.click();
+  await expect(today).toHaveAttribute('aria-pressed', 'true');
   const nowPlus60 = await page.evaluate(() => {
     const t = new Date(Date.now() + 60 * 60_000);
     return new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' }).format(t);
@@ -134,9 +134,9 @@ test('basket suggests a postcard when there is none; a postcard alone cannot be 
   await expect(page.getByTestId('cart-line-card-kraft')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Не забыли открытку?' })).toHaveCount(0);
   // remove the bouquet: only the postcard is left
-  await page.getByRole('button', { name: 'Убрать Белые тюльпаны' }).click();
+  await page.getByRole('button', { name: 'Удалить из корзины: Белые тюльпаны' }).click();
   await expect(page.getByText('Добавьте букет').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Убрать Крафт-открытка' }).click();
+  await page.getByRole('button', { name: 'Удалить из корзины: Крафт-открытка' }).click();
   await expect(page.getByText('В корзине пока пусто')).toBeVisible();
 });
 
@@ -147,7 +147,7 @@ test('balloons can be ordered on their own, with a postcard', async ({ page }) =
   await page.getByTestId('add-to-cart').click();
   await page.goto(`${SHOP}/order`);
   await expect(page.getByText('Воздушные шары').first()).toBeVisible();
-  await page.getByTestId(`day-${tomorrow()}`).click();
+  await pickDay(page, tomorrow());
   const { slot } = await firstFreeSlot(page);
   await slot.click();
   await fillCustomer(page, 'Шарик Тестов');

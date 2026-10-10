@@ -442,3 +442,70 @@ dialog.astryx-dialog::backdrop { background: color-mix(in srgb, var(--color-text
 .discount-example { white-space: normal; overflow-wrap: anywhere; display: block; }
 .nowrap { white-space: nowrap; }
 .strike { text-decoration: line-through; }
+
+/* ───────── delivery date: a week calendar with arrows ───────── */
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--spacing-1-5); }
+.cal__wd { text-align: center; font-size: 13px; font-weight: 600; color: var(--color-text-secondary); }
+.cal__month { text-transform: capitalize; text-align: center; }
+.cal__day {
+  font: inherit;
+  min-height: 56px;
+  padding: var(--spacing-1) 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border-radius: var(--radius-container);
+  border: 1px solid var(--color-border-emphasized);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-fast, 175ms) var(--ease-standard, ease), transform var(--duration-fast, 175ms) var(--ease-standard, ease);
+}
+.cal__num { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.cal__mark { font-size: 10px; font-weight: 600; line-height: 1.1; min-height: 11px; color: var(--color-text-secondary); white-space: nowrap; }
+.cal__day[data-today] .cal__mark { color: var(--color-text-accent); }
+.cal__day[data-state='full'] { border-style: dashed; background: repeating-linear-gradient(-45deg, var(--color-background-muted) 0 5px, transparent 5px 10px), var(--color-background-surface); }
+.cal__day[data-state='out'], .cal__day[data-state='closed'] { opacity: 0.38; cursor: default; border-color: var(--color-border); }
+.cal__day[aria-pressed='true'] {
+  background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  transform: translateY(-1px);
+}
+.cal__day[aria-pressed='true'] .cal__mark { color: inherit; }
+.cal__day:focus-visible { outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color); outline-offset: 2px; }
+@media (hover: hover) { .cal__day:not(:disabled):not([aria-pressed='true']):hover { background: color-mix(in srgb, var(--color-accent) 8%, var(--color-background-surface)); } }
+@media (prefers-reduced-motion: reduce) { .cal__day { transition: none; } .cal__day[aria-pressed='true'] { transform: none; } }
+@media (max-width: 359px) { .cal { gap: var(--spacing-1); } .cal__num { font-size: 16px; } .cal__mark { font-size: 9px; } }
+
+/* nearest free time, offered at the top of step 2 */
+.suggest-time {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-container);
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-background-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+  color: var(--color-text-primary);
+}
+
+/* address suggestions from Yandex Maps */
+.suggest { position: relative; }
+.suggest__list {
+  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + var(--spacing-1));
+  margin: 0; padding: var(--spacing-1); list-style: none;
+  background: var(--color-background-surface); border: 1px solid var(--color-border); border-radius: var(--radius-container);
+  box-shadow: var(--shadow-med); max-height: 300px; overflow-y: auto;
+}
+.suggest__item {
+  font: inherit; width: 100%; text-align: left; display: flex; gap: var(--spacing-2); align-items: flex-start;
+  padding: var(--spacing-2); border: 0; border-radius: var(--radius-element); background: transparent; color: var(--color-text-primary); cursor: pointer;
+}
+.suggest__list [aria-selected='true'] .suggest__item, .suggest__item:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.suggest__title { display: block; font-weight: 600; }
+.suggest__sub { display: block; font-size: 13px; color: var(--color-text-secondary); }
+.suggest__brand { padding: var(--spacing-1) var(--spacing-2) 0; font-size: 11px; color: var(--color-text-secondary); text-align: right; }
+
+/* toasts (e.g. «убран из корзины — Оставить в корзине») appear above the bottom navigation */
+[role='region'][popover]:has(.astryx-toast) {
+  bottom: calc(var(--nav-height) + var(--nav-gap) * 2 + env(safe-area-inset-bottom)) !important;
+}
+.cal-wrap { width: 100%; max-width: 560px; }
+.icon-inline { flex: none; margin-top: 2px; color: var(--color-text-secondary); }
