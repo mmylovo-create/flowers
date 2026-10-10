@@ -12,15 +12,15 @@ interface TgCallback { id: string; from: TgUser; message?: TgMessage; data?: str
 export interface TgUpdate { update_id: number; message?: TgMessage; callback_query?: TgCallback }
 
 interface ShopRef { id: string; slug: string; name: string }
-interface Session { shopId: string | null; state: { step?: string; photo?: string; bouquetId?: string; kind?: ProductKind } }
+interface Session { shopId: string | null; state: { step?: string; photo?: string; bouquetId?: string; kind?: ProductKind; op?: StockOp } }
 
-const BTN = { orders: '📦 Заказы', catalog: '🗂 Каталог', add: '➕ Добавить товар', site: '🌐 Сайт' };
+const BTN = { orders: '📦 Заказы', catalog: '🗂 Каталог', add: '➕ Добавить товар', stock: '📒 Учёт', site: '🌐 Сайт' };
 // buttons of the previous menu, still understood if an old keyboard is on screen
 const OLD_CATALOG = '💐 Букеты';
 const OLD_ADD = '➕ Добавить букет';
 
 const MENU = {
-  keyboard: [[{ text: BTN.orders }, { text: BTN.catalog }], [{ text: BTN.add }, { text: BTN.site }]],
+  keyboard: [[{ text: BTN.orders }, { text: BTN.catalog }], [{ text: BTN.add }, { text: BTN.stock }], [{ text: BTN.site }]],
   resize_keyboard: true,
   is_persistent: true,
 };
@@ -41,6 +41,7 @@ const HELP = [
   `${BTN.orders} — ближайшие заказы и смена статуса`,
   `${BTN.catalog} — разделы Цветы, Открытки, Шары, Фейерверки: у каждого товара фото, цена, описание и наличие; под товаром кнопки наличия, цены и количества`,
   `${BTN.add} — выберите раздел и пришлите фото с подписью «Название; Цена; Описание; Количество»`,
+  `${BTN.stock} — склад цветов: остатки, приход поставки, списание на букеты и брак, отчёт за любой день`,
   `${BTN.site} — ссылки на сайт и кабинет`,
   '/shop — выбрать магазин, если их несколько · /cancel — отменить ввод',
 ].join('\n');
@@ -124,6 +125,10 @@ export async function handleUpdate(deps: ServerDeps, u: TgUpdate): Promise<void>
         inline_keyboard: chunk(BOT_SECTIONS.map((x) => ({ text: `${x.emoji} ${x.title}`, callback_data: `a:${x.kind}` })), 2),
       }));
     }
+    if ((cmd === 'stock' && !args.length) || cmd === 'uchet' || text === BTN.stock) {
+      await setState({});
+      return void (await sendStockMenu(deps, chat, shop));
+    }
     if (cmd === 'cancel') {
       await setState({});
       return void (await reply('Отменено.'));
@@ -148,6 +153,9 @@ export async function handleUpdate(deps: ServerDeps, u: TgUpdate): Promise<void>
       const parsed = parseBouquetText(text);
       if (!parsed) return void (await reply(`Не получилось разобрать. Формат:\n${ADD_FORMAT}`));
       return void (await createBouquet(deps, chat, shop, { ...parsed, photo: session.state.photo, kind: session.state.kind }, reply, setState));
+    }
+    if (session.state.step === 'stock_op' && session.state.op && text) {
+      return void (await applyStockText(deps, chat, shop, session.state.op, text, setState));
     }
     if (session.state.step === 'add_photo') return void (await reply(`Жду фото товара 📷 с подписью:\n${ADD_FORMAT}`));
     if (session.state.step === 'stock' && session.state.bouquetId) {
@@ -225,6 +233,19 @@ async function onCallback(deps: ServerDeps, q: TgCallback) {
       await call(deps.db, 'tg_session_set', { p_chat: chat, p_shop: shop.id, p_state: { step: 'stock', bouquetId: id } });
       await tg.send(chat, 'Сколько штук в наличии? Пришлите число. 0 — нет в наличии, «-» — без учёта остатка.');
       return void (await answer('Жду количество'));
+    }
+    if (kind === 'k' && id === 'list') {
+      await answer('Остатки');
+      return void (await sendStockList(deps, chat, shop));
+    }
+    if (kind === 'k' && isStockOp(id)) {
+      await call(deps.db, 'tg_session_set', { p_chat: chat, p_shop: shop.id, p_state: { step: 'stock_op', op: id } });
+      await tg.send(chat, STOCK_OPS[id].prompt, MENU);
+      return void (await answer(STOCK_OPS[id].title));
+    }
+    if (kind === 'r') {
+      await answer('Отчёт');
+      return void (await sendStockReport(deps, chat, shop, /^\d{4}-\d{2}-\d{2}$/.test(id) ? id : null));
     }
     if (kind === 'c' && isKind(id)) {
       await answer(section(id).title);
@@ -382,4 +403,198 @@ export function bouquetIdFromName(name: string): string {
   const base = name.toLowerCase().split('').map((c) => TR[c] ?? c).join('')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'buket';
   return `${base}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+// ───────────────────────── «📒 Учёт»: stems and greenery in the workshop ─────────────────────────
+
+export type StockOp = 'receipt' | 'bouquet' | 'waste' | 'adjust' | 'add';
+interface StockItem { id: string; name: string; qty: number }
+interface StockResult { kind: StockOp; lines: { name: string; qty: number; delta: number; balance: number; created: boolean }[] }
+interface StockReport {
+  day: string; today: string;
+  moves: { time: string; kind: Exclude<StockOp, 'add'>; name: string; delta: number; balance: number; note: string }[];
+  totals: Partial<Record<Exclude<StockOp, 'add'>, number>>;
+  stock: { items: number; qty: number };
+}
+
+const STOCK_EXAMPLE = 'Роза красная 60 см — 200\nЭвкалипт 25\nГипсофила; 10';
+export const STOCK_OPS: Record<StockOp, { title: string; emoji: string; done: string; prompt: string }> = {
+  receipt: {
+    title: 'Приход', emoji: '➕', done: 'Приход записан',
+    prompt: `➕ Приход поставки. Пришлите позиции — каждую с новой строки, количество в конце:\n${STOCK_EXAMPLE}\n\nНовые названия сами добавятся на склад. Можно приписать строку-комментарий без числа, например «Поставка от Голландии».`,
+  },
+  bouquet: {
+    title: 'На букеты', emoji: '💐', done: 'Списано на букеты',
+    prompt: `💐 Списание на букеты. Пришлите, сколько ушло — каждую позицию с новой строки:\nРоза красная 60 см 15\nЭвкалипт 5\n\nСтрока без числа станет комментарием, например «Букет к заказу №12».`,
+  },
+  waste: {
+    title: 'Брак', emoji: '🗑', done: 'Списано в брак',
+    prompt: `🗑 Брак и выброс. Пришлите, что выброшено — каждую позицию с новой строки:\nТюльпан 7\n\nСтрока без числа станет причиной, например «завяли».`,
+  },
+  adjust: {
+    title: 'Исправить остаток', emoji: '✏️', done: 'Остаток исправлен',
+    prompt: '✏️ Исправить остаток (после пересчёта). Пришлите, сколько есть на самом деле:\nРоза белая 42\nПион 0',
+  },
+  add: {
+    title: 'Загрузить список', emoji: '📋', done: 'Список загружен',
+    prompt: `📋 Загрузка списка товаров. Пришлите названия, каждое с новой строки — можно сразу с остатком в конце:\nРоза красная 60 см 120\nРанункулюс белый\nЛента атласная\n\nБез числа позиция добавится с нулём. Можно вставить хоть 100 строк за раз.`,
+  },
+};
+const isStockOp = (k: string): k is StockOp => k in STOCK_OPS;
+const MOVE_LABEL: Record<Exclude<StockOp, 'add'>, string> = {
+  receipt: '➕ Приход', bouquet: '💐 На букеты', waste: '🗑 Брак и выброс', adjust: '✏️ Исправления',
+};
+
+/**
+ * «Роза красная 60 см — 200», «Эвкалипт 25», «Гипсофила; 10 шт» → name + quantity at the end of the line.
+ * A line without a trailing number has qty null (a comment for write-offs, a zero position for the list).
+ */
+export function parseStockLines(text: string): { name: string; qty: number | null }[] {
+  return text.split(/\r?\n/).map((l) => l.replace(/^\s*[-•*·]\s*/, '').trim()).filter(Boolean).map((l) => {
+    const m = l.match(/^(.*?)[\s;:,—–\-=×*]*(?<!\d)(\d{1,6})\s*(шт\.?|штук[и]?|стебл[еяи][йм]?|стеб\.?|ш)?\s*$/i);
+    // «Букет к заказу №12» is a comment: a number right after № or # is not a quantity
+    if (m && m[1].trim().length >= 2 && !/[№#]\s*$/.test(m[1])) return { name: m[1].replace(/[\s;:,—–\-=×*]+$/, '').trim(), qty: parseInt(m[2], 10) };
+    return { name: l.replace(/[;:,—–\-=]+$/, '').trim(), qty: null };
+  });
+}
+
+const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+
+export function formatStockResult(r: StockResult, note: string): string {
+  const op = STOCK_OPS[r.kind];
+  const lines = r.lines.map((l) => {
+    if (r.kind === 'add' && l.delta === 0) return `• ${l.name}${l.created ? ' — добавлена' : ' — уже есть'}, ${l.balance} шт.`;
+    return `• ${l.name} ${signed(l.delta)} → ${l.balance} шт.${l.created ? ' (новая позиция)' : ''}`;
+  });
+  return [`${op.emoji} ${op.done}:`, ...lines, ...(note ? [`Комментарий: ${note}`] : [])].join('\n');
+}
+
+const RU_MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+const RU_WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+const dayLabel = (iso: string) => { const d = new Date(iso + 'T12:00:00Z'); return `${RU_WD[d.getUTCDay()]}, ${d.getUTCDate()} ${RU_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+const shiftDay = (iso: string, n: number) => new Date(Date.parse(iso + 'T12:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
+
+/** The daily report: totals per kind with items, then the journal of every operation. */
+export function formatStockReport(r: StockReport): string {
+  const head = `📊 Учёт за ${dayLabel(r.day)}${r.day === r.today ? ' (сегодня)' : ''}`;
+  const foot = `📦 На складе сейчас: ${r.stock.items} поз., ${r.stock.qty} шт.`;
+  if (!r.moves.length) return `${head}\n\nЗа этот день операций нет.\n\n${foot}`;
+  const out = [head, ''];
+  for (const k of ['receipt', 'bouquet', 'waste', 'adjust'] as const) {
+    const ms = r.moves.filter((m) => m.kind === k);
+    if (!ms.length) continue;
+    const byItem = new Map<string, number>();
+    for (const m of ms) byItem.set(m.name, (byItem.get(m.name) ?? 0) + m.delta);
+    out.push(k === 'adjust' ? `${MOVE_LABEL[k]}:` : `${MOVE_LABEL[k]} — ${r.totals[k] ?? 0} шт.:`);
+    for (const [name, d] of byItem) out.push(`  • ${name} ${k === 'adjust' ? signed(d) : Math.abs(d)}`);
+    out.push('');
+  }
+  out.push('🕘 Журнал:');
+  const shown = r.moves.slice(0, 80);
+  for (const m of shown) {
+    out.push(`${m.time} ${MOVE_LABEL[m.kind].split(' ')[0]} ${m.name} ${signed(m.delta)} → ${m.balance}${m.note ? ` · ${m.note}` : ''}`);
+  }
+  if (r.moves.length > shown.length) out.push(`…и ещё ${r.moves.length - shown.length} операций`);
+  out.push('', foot);
+  return out.join('\n');
+}
+
+/** Telegram allows 4096 characters per message; split on line breaks. */
+export function splitMessage(text: string, max = 3900): string[] {
+  const parts: string[] = [];
+  let cur = '';
+  for (const line of text.split('\n')) {
+    if (cur && cur.length + line.length + 1 > max) { parts.push(cur); cur = ''; }
+    cur = cur ? `${cur}\n${line}` : line;
+  }
+  if (cur) parts.push(cur);
+  return parts;
+}
+
+async function sendLong(tg: NonNullable<ServerDeps['telegram']>, chat: number, text: string, markup?: unknown) {
+  const parts = splitMessage(text);
+  for (let i = 0; i < parts.length; i++) await tg.send(chat, parts[i], i === parts.length - 1 ? markup : undefined);
+}
+
+function stockMenuButtons() {
+  const b = (op: StockOp) => ({ text: `${STOCK_OPS[op].emoji} ${STOCK_OPS[op].title}`, callback_data: `k:${op}` });
+  return {
+    inline_keyboard: [
+      [{ text: '📦 Остатки', callback_data: 'k:list' }, b('receipt')],
+      [b('bouquet'), b('waste')],
+      [b('adjust'), b('add')],
+      [{ text: '📊 Отчёт за сегодня', callback_data: 'r:today' }],
+    ],
+  };
+}
+
+async function sendStockMenu(deps: ServerDeps, chat: number, shop: ShopRef) {
+  const list = await call<StockItem[]>(deps.db, 'tg_stock_list', { p_chat: chat, p_shop: shop.id });
+  const inStock = list.filter((i) => i.qty > 0);
+  await deps.telegram!.send(chat, [
+    '📒 Учёт склада — цветы и зелень для сборки букетов (на сайте не видно).',
+    `Позиций: ${list.length}, в наличии: ${inStock.length}, всего ${inStock.reduce((a, i) => a + i.qty, 0)} шт.`,
+    '',
+    'Что сделать?',
+  ].join('\n'), stockMenuButtons());
+}
+
+async function sendStockList(deps: ServerDeps, chat: number, shop: ShopRef) {
+  const list = await call<StockItem[]>(deps.db, 'tg_stock_list', { p_chat: chat, p_shop: shop.id });
+  if (!list.length) return void (await deps.telegram!.send(chat, 'Склад пуст. Нажмите «📋 Загрузить список» или «➕ Приход».', stockMenuButtons()));
+  const have = list.filter((i) => i.qty > 0);
+  const zero = list.filter((i) => i.qty === 0);
+  const text = [
+    `📦 Остатки: ${have.length} поз., ${have.reduce((a, i) => a + i.qty, 0)} шт.`,
+    '',
+    ...have.map((i) => `${i.name} — ${i.qty} шт.`),
+    ...(zero.length ? ['', `Нет в наличии (0): ${zero.map((i) => i.name).join(', ')}`] : []),
+  ].join('\n');
+  await sendLong(deps.telegram!, chat, text, stockMenuButtons());
+}
+
+async function sendStockReport(deps: ServerDeps, chat: number, shop: ShopRef, day: string | null) {
+  const r = await call<StockReport>(deps.db, 'tg_stock_report', { p_chat: chat, p_shop: shop.id, p_day: day });
+  const nav = [{ text: '◀ Предыдущий день', callback_data: `r:${shiftDay(r.day, -1)}` }];
+  if (r.day < r.today) nav.push({ text: 'Следующий день ▶', callback_data: `r:${shiftDay(r.day, 1)}` });
+  const rows = [nav];
+  if (r.day !== r.today) rows.push([{ text: '📅 Сегодня', callback_data: 'r:today' }]);
+  await sendLong(deps.telegram!, chat, formatStockReport(r), { inline_keyboard: rows });
+}
+
+async function applyStockText(
+  deps: ServerDeps, chat: number, shop: ShopRef, op: StockOp, text: string,
+  setState: (s: Session['state']) => Promise<unknown>,
+) {
+  const tg = deps.telegram!;
+  const parsed = parseStockLines(text);
+  const withQty = parsed.filter((l): l is { name: string; qty: number } => l.qty !== null);
+  const plain = parsed.filter((l) => l.qty === null).map((l) => l.name);
+  const results: string[] = [];
+  try {
+    if (op === 'add') {
+      if (withQty.length) {
+        const r = await call<StockResult>(deps.db, 'tg_stock_apply', { p_chat: chat, p_shop: shop.id, p_kind: 'receipt', p_lines: withQty, p_note: 'Загрузка списка' });
+        results.push(formatStockResult({ ...r, kind: 'add' }, ''));
+      }
+      if (plain.length) {
+        const r = await call<StockResult>(deps.db, 'tg_stock_apply', { p_chat: chat, p_shop: shop.id, p_kind: 'add', p_lines: plain.map((name) => ({ name, qty: 0 })), p_note: '' });
+        results.push(formatStockResult(r, ''));
+      }
+    } else {
+      if (!withQty.length) {
+        return void (await tg.send(chat, `Не нашёл количества. Пишите число в конце строки, например:\n${STOCK_EXAMPLE}`, MENU));
+      }
+      const note = plain.join('; ').slice(0, 200);
+      const r = await call<StockResult>(deps.db, 'tg_stock_apply', { p_chat: chat, p_shop: shop.id, p_kind: op, p_lines: withQty, p_note: note });
+      results.push(formatStockResult(r, note));
+    }
+  } catch (e) {
+    if (!(e instanceof AppError)) throw e;
+    // the batch is all-or-nothing: tell which line stopped it, keep the step so the owner can resend
+    const detail = e.detail && e.detail !== e.code ? `\n${e.detail}` : '';
+    return void (await tg.send(chat, `⚠️ ${e.message}${detail}\nНичего не записано — исправьте строку и пришлите список ещё раз (или /cancel).`, MENU));
+  }
+  await setState({});
+  await sendLong(tg, chat, results.join('\n\n'), stockMenuButtons());
 }

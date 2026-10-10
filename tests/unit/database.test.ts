@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { LocalDb, type Claims } from '../../dev/pg.ts';
 import { daySlots, deliveryDays, tenantFileSchema, type OrderView } from '@domain';
 import { createApiHandler, TelegramClient, type Db, type ServerDeps } from '@server/server.ts';
-import { createTelegramHandler } from '@server/telegram.ts';
+import { createTelegramHandler, formatStockReport, parseStockLines, splitMessage } from '@server/telegram.ts';
 
 const tenant = tenantFileSchema.parse(JSON.parse(readFileSync('tenants/demo/shop.json', 'utf8')));
 const S = tenant.settings;
@@ -300,6 +300,77 @@ describe('Telegram bot', () => {
     pub = (await db.rpc('shop_public', { p_slug: 'demo' }, { role: 'anon' })) as { bouquets: P[] };
     expect(pub.bouquets.find((b) => b.id === star.id)!.stock).toBe(3);
     expect(pub.bouquets.find((b) => b.id === 'pion-cloud')!.inStock).toBe(false);
+  });
+
+  it('stock lines: «Название количество» with the number at the end, comments without a number', () => {
+    expect(parseStockLines('Роза красная 60 см — 200\nЭвкалипт 25\n- Гипсофила; 10 шт\nРанункулюс белый\nПоставка от Голландии\nТюльпан 2000000')).toEqual([
+      { name: 'Роза красная 60 см', qty: 200 },
+      { name: 'Эвкалипт', qty: 25 },
+      { name: 'Гипсофила', qty: 10 },
+      { name: 'Ранункулюс белый', qty: null },
+      { name: 'Поставка от Голландии', qty: null },
+      { name: 'Тюльпан 2000000', qty: null }, // more than 6 digits is not a quantity
+    ]);
+    expect(parseStockLines('Орхидея белых 5')[0]).toEqual({ name: 'Орхидея белых', qty: 5 });
+    expect(parseStockLines('Букет к заказу №12\nДля заказа # 7')).toEqual([{ name: 'Букет к заказу №12', qty: null }, { name: 'Для заказа # 7', qty: null }]);
+    expect(splitMessage('a\n'.repeat(3000), 100).every((p) => p.length <= 100)).toBe(true);
+  });
+
+  it('«📒 Учёт»: load a list, supplies of hundreds of stems, write-offs for bouquets and waste, daily report', async () => {
+    const msg = (id: number, text: string) => ({ update_id: 500 + id, message: { message_id: id, chat: { id: CHAT, type: 'private' }, text } });
+    const tap = (id: number, data: string) => ({ update_id: 600 + id, callback_query: { id: `k${id}`, from: { id: CHAT }, message: { message_id: 90 + id, chat: { id: CHAT, type: 'private' } }, data } });
+    const stock = async () => Object.fromEntries(((await db.rpc('tg_stock_list', { p_chat: CHAT, p_shop: shopId }, svc)) as { name: string; qty: number }[]).map((i) => [i.name, i.qty]));
+    const lastText = () => String(sent.at(-1)!.payload.text);
+
+    sent.length = 0;
+    await tg(msg(1, '📒 Учёт'));
+    expect(JSON.stringify(sent.at(-1)!.payload.reply_markup)).toContain('k:receipt');
+    // load the list: with a balance or at zero
+    await tg(tap(1, 'k:add'));
+    await tg(msg(2, 'Роза красная 60 см 120\nРанункулюс белый\nЭвкалипт'));
+    expect(await stock()).toMatchObject({ 'Роза красная 60 см': 120, 'Ранункулюс белый': 0, 'Эвкалипт': 0 });
+    // a supply of 200 roses; the name matches regardless of case and spaces
+    await tg(tap(2, 'k:receipt'));
+    await tg(msg(3, 'роза  красная 60 см — 200\nЭвкалипт 25\nПоставка от Голландии'));
+    expect(lastText()).toMatch(/Приход записан:\n• Роза красная 60 см \+200 → 320 шт\./);
+    expect(await stock()).toMatchObject({ 'Роза красная 60 см': 320, 'Эвкалипт': 25 });
+    // stems used for bouquets
+    await tg(tap(3, 'k:bouquet'));
+    await tg(msg(4, 'Роза красная 60 см 15\nэвкалипт 5\nБукет к заказу №12'));
+    expect(await stock()).toMatchObject({ 'Роза красная 60 см': 305, 'Эвкалипт': 20 });
+    // waste: more than there is → nothing changes; then a valid write-off
+    await tg(tap(4, 'k:waste'));
+    await tg(msg(5, 'Эвкалипт 2\nРоза красная 60 см 400'));
+    expect(lastText()).toMatch(/меньше, чем вы хотите списать\.\nРоза красная 60 см: на складе 305 шт\.\nНичего не записано/);
+    expect(await stock()).toMatchObject({ 'Роза красная 60 см': 305, 'Эвкалипт': 20 });
+    await tg(msg(6, 'Роза красная 60 см 5\nзавяли'));
+    expect(await stock()).toMatchObject({ 'Роза красная 60 см': 300 });
+    // a write-off of something that is not in the base
+    await tg(tap(5, 'k:waste'));
+    await tg(msg(7, 'Орхидея 1'));
+    expect(lastText()).toMatch(/Такой позиции нет на складе/);
+    await tg(msg(8, '/cancel'));
+    // stocktaking
+    await tg(tap(6, 'k:adjust'));
+    await tg(msg(9, 'Ранункулюс белый 3'));
+    expect(await stock()).toMatchObject({ 'Ранункулюс белый': 3 });
+    // today's report
+    sent.length = 0;
+    await tg(tap(7, 'r:today'));
+    const report = sent.filter((m) => m.method === 'sendMessage').map((m) => String(m.payload.text)).join('\n');
+    expect(report).toMatch(/📊 Учёт за .+ \(сегодня\)/);
+    expect(report).toContain('➕ Приход — 345 шт.'); // 120 loaded with the list + 225 supplied
+    expect(report).toContain('💐 На букеты — 20 шт.');
+    expect(report).toContain('🗑 Брак и выброс — 5 шт.');
+    expect(report).toMatch(/\d\d:\d\d 💐 Роза красная 60 см -15 → 305 · Букет к заказу №12/);
+    expect(report).toMatch(/\d\d:\d\d 🗑 Роза красная 60 см -5 → 300 · завяли/);
+    expect(report).toContain('📦 На складе сейчас: 3 поз., 323 шт.');
+    expect(JSON.stringify(sent.at(-1)!.payload.reply_markup)).toMatch(/Предыдущий день/);
+    // an earlier day has no operations
+    const r0 = (await db.rpc('tg_stock_report', { p_chat: CHAT, p_shop: shopId, p_day: '2020-01-01' }, svc)) as Parameters<typeof formatStockReport>[0];
+    expect(formatStockReport(r0)).toContain('За этот день операций нет.');
+    // another chat cannot touch this shop's stock
+    await expect(db.rpc('tg_stock_apply', { p_chat: 999, p_shop: shopId, p_kind: 'receipt', p_lines: [{ name: 'Роза', qty: 1 }] }, svc)).rejects.toThrow();
   });
 
   it('ignores requests without the webhook secret and unlinked chats', async () => {
